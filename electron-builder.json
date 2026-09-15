@@ -1,0 +1,79 @@
+{
+  "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
+  "appId": "com.aiplate.app",
+  "productName": "AI Plate",
+  "directories": {
+    "output": "release",
+    "buildResources": "build"
+  },
+  "icon": "build/icon.png",
+  "files": [
+    "dist/**/*",
+    "ui/**/*",
+    "build/**/*",
+    "plugins/installed/**/*",
+    "connectors/installed/**/*",
+    "config.example.yaml",
+    "package.json",
+    "LICENSE"
+  ],
+  "extraResources": [
+    {
+      "from": "config.example.yaml",
+      "to": "config.yaml"
+    },
+    {
+      "from": ".env.example",
+      "to": ".env"
+    },
+    {
+      "from": "runtime/python",
+      "to": "runtime/python"
+    },
+    {
+      "from": "scripts/kokoro-worker.py",
+      "to": "scripts/kokoro-worker.py"
+    },
+    {
+      "from": "scripts/moonshine-worker.py",
+      "to": "scripts/moonshine-worker.py"
+    }
+  ],
+  "asar": true,
+  "npmRebuild": false,
+  "nodeGypRebuild": false,
+  "asarUnpack": [
+    "**/*.node"
+  ],
+  "win": {
+    "icon": "build/icon.ico",
+    "target": [
+      {
+        "target": "nsis",
+        "arch": [
+          "x64"
+        ]
+      },
+      {
+        "target": "portable",
+        "arch": [
+          "x64"
+        ]
+      }
+    ],
+    "signExecutable": false
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true,
+    "include": "build/installer.nsh",
+    "installerLanguages": ["en_US"],
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "AI Plate",
+    "license": "build/license.txt",
+    "runAfterFinish": true,
+    "deleteAppDataOnUninstall": false
+  }
+}

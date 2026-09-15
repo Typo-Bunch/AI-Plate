@@ -1,0 +1,234 @@
+# ═════════════════════════════════════════════════════════════════════
+# AI Plate — Open Power: Unified Agent Configuration (YAML)
+# ═════════════════════════════════════════════════════════════════════
+
+app:
+  name: "AI Plate"
+  tagline: "Open Power"
+
+# Set verbose: true to show all execution details, chunk embeddings, tool calls, and HTTP events in the terminal.
+verbose: false
+
+# ─── 1. Active Providers & Reasoning Models ──────────────────────────
+provider:
+  # Active Provider: "openrouter" | "gemini" | "openai" | "anthropic" | "groq" | "deepseek" | "ollama"
+  active: "gemini"
+
+  # Priority order when auto-detecting credentials
+  priority:
+    - "openrouter"
+    - "gemini"
+    - "openai"
+    - "anthropic"
+    - "groq"
+    - "deepseek"
+    - "ollama"
+
+  # Default model per provider
+  models:
+    openrouter: "nvidia/nemotron-3.5-lightning:free"
+    gemini: "gemini-3.5-flash-lite"
+    openai: "gpt-4o-mini"
+    anthropic: "claude-3-7-sonnet-20250219"
+    groq: "llama-3.3-70b-versatile"
+    deepseek: "deepseek-chat"
+    ollama: "llama3.3"
+
+  # Configurable available models per provider for UI dropdown (Curated with top Free models)
+  available_models:
+    openrouter:
+      - "openrouter/auto"
+      - "nvidia/nemotron-3.5-lightning:free"
+      - "deepseek/deepseek-r1:free"
+      - "deepseek/deepseek-chat:free"
+      - "meta-llama/llama-3.3-70b-instruct:free"
+      - "meta-llama/llama-3.1-8b-instruct:free"
+      - "meta-llama/llama-3.2-3b-instruct:free"
+      - "meta-llama/llama-3.2-1b-instruct:free"
+      - "google/gemini-2.0-flash-exp:free"
+      - "google/gemini-2.0-flash-thinking-exp:free"
+      - "google/gemma-2-9b-it:free"
+      - "google/gemma-2-27b-it:free"
+      - "qwen/qwen-2.5-coder-32b-instruct:free"
+      - "qwen/qwen-2.5-72b-instruct:free"
+      - "qwen/qwq-32b-preview:free"
+      - "mistralai/mistral-7b-instruct:free"
+      - "mistralai/mistral-nemo:free"
+      - "microsoft/phi-3-medium-128k-instruct:free"
+      - "microsoft/phi-3.5-mini-128k-instruct:free"
+      - "cognitivecomputations/dolphin3.0-r1-mistral-24b:free"
+    gemini:
+      - "gemini-3.5-flash-lite"
+      - "gemini-3.5-flash"
+      - "gemini-2.5-flash"
+      - "gemini-2.5-flash-lite"
+      - "gemini-2.5-pro"
+      - "gemini-1.5-flash"
+      - "gemini-1.5-pro"
+    openai:
+      - "gpt-4o-mini"
+      - "gpt-4o"
+      - "o1-mini"
+      - "o3-mini"
+    anthropic:
+      - "claude-3-7-sonnet-20250219"
+      - "claude-3-5-sonnet-20241022"
+      - "claude-3-5-haiku-20241022"
+    groq:
+      - "llama-3.3-70b-versatile"
+      - "llama-3.1-8b-instant"
+      - "llama-3.2-3b-preview"
+      - "llama-3.2-1b-preview"
+      - "deepseek-r1-distill-llama-70b"
+      - "mixtral-8x7b-32768"
+      - "gemma2-9b-it"
+    deepseek:
+      - "deepseek-chat"
+      - "deepseek-reasoner"
+    ollama:
+      - "llama3.3"
+      - "llama3.2"
+      - "llama3.1"
+      - "deepseek-r1"
+      - "qwen2.5-coder"
+      - "mistral"
+      - "phi4"
+      - "gemma2"
+
+# ─── Custom Plug-and-Play Providers (Zero Code Modification) ────────
+# Register any custom cloud or local OpenAI-compatible endpoint dynamically:
+custom_providers:
+  together:
+    display_name: "Together AI"
+    driver: "openai-compatible"
+    base_url: "https://api.together.xyz/v1"
+    env_key: "TOGETHER_API_KEY"
+    default_model: "meta-llama/Llama-3.3-70B-Instruct-Turbo"
+    available_models:
+      - "meta-llama/Llama-3.3-70B-Instruct-Turbo"
+      - "deepseek-ai/DeepSeek-R1"
+
+  lmstudio:
+    display_name: "LM Studio (Local)"
+    driver: "openai-compatible"
+    base_url: "http://localhost:1234/v1"
+    default_model: "local-model"
+    available_models:
+      - "local-model"
+
+# ─── 2. Vector Embedding Configuration (RAG & Session Memory) ───────
+embedding:
+  # Active Embedding Model
+  # Curated Options:
+  #   - OpenRouter: "liquid/lfm-2.5-embedding-350m:free" (1024d Free), "baai/bge-large-en-v1.5", "openai/text-embedding-3-small"
+  #   - Gemini:     "gemini-embedding-2" (3072d), "text-embedding-004" (768d)
+  #   - OpenAI:     "text-embedding-3-small" (1536d), "text-embedding-3-large" (3072d)
+  #   - Ollama:     "nomic-embed-text" (768d), "all-minilm" (384d), "bge-m3" (1024d)
+  model: "liquid/lfm-2.5-embedding-350m:free"
+  provider: "openrouter"
+
+  # Configurable embedding models per provider for the UI dropdown
+  available_models:
+    openrouter:
+      - "liquid/lfm-2.5-embedding-350m:free"
+      - "openai/text-embedding-3-small"
+      - "openai/text-embedding-3-large"
+      - "baai/bge-large-en-v1.5"
+      - "baai/bge-base-en-v1.5"
+    gemini:
+      - "text-embedding-004"
+      - "gemini-embedding-2"
+    openai:
+      - "text-embedding-3-small"
+      - "text-embedding-3-large"
+      - "text-embedding-ada-002"
+    ollama:
+      - "nomic-embed-text"
+      - "all-minilm"
+      - "bge-m3"
+      - "mxbai-embed-large"
+    groq:
+      - "liquid/lfm-2.5-embedding-350m:free"
+      - "text-embedding-3-small"
+    deepseek:
+      - "liquid/lfm-2.5-embedding-350m:free"
+      - "text-embedding-3-small"
+    anthropic:
+      - "liquid/lfm-2.5-embedding-350m:free"
+      - "text-embedding-3-small"
+
+  # Token-Safe Clamping Knobs
+  liquid_max_chars: 1400 # Safe character limit for 512-token context models
+  default_max_chars: 4000 # Character limit for general embedding models
+  batch_size: 5 # Number of chunks embedded in parallel per request
+
+# ─── 3. Rate Limit & API Retry Resilience Knobs ─────────────────────
+retry:
+  max_retries: 2 # Max retry attempts on HTTP 429 rate limit
+  initial_delay_ms: 2000 # Base backoff delay in milliseconds
+  max_delay_ms: 15000 # Maximum retry delay ceiling in milliseconds
+  gemini_initial_delay_ms: 3000
+  openai_initial_delay_ms: 1500
+
+# ─── 4. Session Vector Memory Knobs ──────────────────────────────────
+session_memory:
+  max_memorize_chars: 1500 # Max chars to embed for recall
+  max_store_chars: 4000 # Max chars stored in SQLite DB
+  recall_top_k: 3 # Number of relevant past turns to recall
+  min_similarity: 0.65 # Minimum cosine similarity threshold (0.0 - 1.0)
+  query_min_chars: 8 # Min query length to trigger recall
+
+# ─── 5. Persistent RAG Knowledge Base Knobs ──────────────────────────
+rag:
+  chunk_size: 1200 # Characters per document chunk
+  chunk_overlap: 200 # Overlap in characters between chunks
+  top_k: 4 # Number of chunks retrieved per query
+  min_similarity: 0.3 # Minimum similarity threshold (0.0 - 1.0)
+  database_path: "agent_data.db"
+  auto_query_enabled: true # Auto-inject relevant chunks into prompts
+  shelf_life_days: 7 # TTL auto-pruning threshold in days (0 to disable)
+
+# ─── 6. Workspace, Scratchpad & Persistent Artifacts ─────────────────
+workspace:
+  sandbox_dir: ".sandbox"      # Ephemeral scratchpad for temporary script runs & raw processing
+  artifacts_dir: "artifacts"   # Persistent store for deliverable charts, images, CSVs, and reports
+  clean_sandbox_on_exit: false # Set true to automatically wipe .sandbox/ on server shutdown
+
+shell:
+  timeout_ms: 30000 # Command execution timeout in ms
+  max_buffer_bytes: 1048576 # 1 MB maximum output buffer
+  max_output_chars: 4000 # Max characters passed back to LLM
+
+# ─── 7. Web Search & Fact Verification ───────────────────────────────
+web_search:
+  min_accuracy: 75 # Minimum confidence percentage threshold
+  max_results: 5 # Maximum web search results returned
+  max_page_length: 6000 # Max webpage text length extracted
+  user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
+# ─── 8. Agent Execution ──────────────────────────────────────────────
+agent:
+  max_tool_iterations: 20 # Maximum reasoning loops per prompt
+
+# ─── 9. Universal Cognitive Thinking & Reasoning Depth ──────────────
+thinking:
+  # Universal Thinking Level applied across ALL models (Native or via Deep CoT):
+  # Options:
+  #   - "off"    (Direct / Fast — 10 max iterations)
+  #   - "low"    (Quick Thought — 15 max iterations, 1024 token budget)
+  #   - "medium" (Balanced — 25 max iterations, 4096 token budget)
+  #   - "high"   (Deep Reasoning — 40 max iterations, 12288 token budget) [Recommended]
+  #   - "max"    (Exhaustive Deep Work — 60 max iterations, 32768 token budget)
+  level: "high"
+
+# ─── 10. Intelligent Context Compression & Token Optimization ─────────
+context_compressor:
+  enabled: true # Enable intelligent context compression
+  mode: "smart" # Compression mode: "smart", "extractive", "sliding_window"
+  max_prompt_tokens: 8192 # Max token budget for injected RAG + session context
+  max_history_turns: 20 # Turns before older conversation turns are summarized
+  max_tool_output_chars: 4000 # Max characters per tool execution output
+  preserve_recent_turns: 6 # Recent turns to always keep verbatim
+  enable_tool_compression: true # Compress oversized tool outputs in reasoning loop
+  enable_rag_compression: true # Deduplicate and prune retrieved RAG chunks
+

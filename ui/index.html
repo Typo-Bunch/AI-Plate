@@ -1,0 +1,2274 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Plate — Open Power</title>
+  
+  <!-- Modern Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <!-- KaTeX LaTeX Math -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+  
+  <!-- Highlight.js Syntax Highlighting -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css" id="hljs-theme">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+
+  <!-- DOMPurify Security Guard (Anti-XSS) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
+  
+  <link rel="icon" type="image/png" href="assets/logo.png">
+  <link rel="stylesheet" href="style.css">
+
+  <!-- Instant Theme & Icon Pack Rehydration (Zero-Flicker) -->
+  <script>
+    (function() {
+      try {
+        // 1. Rehydrate Active Theme
+        var savedTheme = localStorage.getItem("ai_plate_active_theme") || localStorage.getItem("ai_plate_custom_theme");
+        if (savedTheme) {
+          try {
+            var themeCheck = JSON.parse(savedTheme);
+            if (themeCheck && themeCheck.preset && (themeCheck.preset === "nordic-dark" || themeCheck.preset === "pure-slate")) {
+              localStorage.removeItem("ai_plate_active_theme");
+              localStorage.removeItem("ai_plate_custom_theme");
+              savedTheme = null;
+            }
+          } catch(e) {}
+        }
+        if (savedTheme) {
+          var theme = JSON.parse(savedTheme);
+          if (theme && theme.font_url) {
+            var fontLink = document.createElement("link");
+            fontLink.id = "ai-plate-dynamic-plugin-font";
+            fontLink.rel = "stylesheet";
+            fontLink.href = theme.font_url;
+            document.head.appendChild(fontLink);
+          }
+          if (theme && theme.css) {
+            var styleEl = document.createElement("style");
+            styleEl.id = "ai-plate-dynamic-plugin-theme";
+            styleEl.innerHTML = theme.css.replace(/,\s*\.topbar/g, "");
+            document.head.appendChild(styleEl);
+          }
+          if (theme && theme.accent_color) {
+            document.documentElement.style.setProperty("--accent-primary", theme.accent_color);
+          }
+        }
+
+        // 2. Rehydrate Active Icon Pack
+        var savedIcon = localStorage.getItem("ai_plate_active_icon_pack");
+        if (savedIcon) {
+          var iconData = JSON.parse(savedIcon);
+          if (iconData && iconData.font_url) {
+            var iconFont = document.createElement("link");
+            iconFont.id = "ai-plate-dynamic-icon-font";
+            iconFont.rel = "stylesheet";
+            iconFont.href = iconData.font_url;
+            document.head.appendChild(iconFont);
+          }
+          if (iconData && iconData.css) {
+            var iconStyle = document.createElement("style");
+            iconStyle.id = "ai-plate-dynamic-icon-theme";
+            iconStyle.innerHTML = iconData.css;
+            document.head.appendChild(iconStyle);
+          }
+        }
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body>
+  <!-- ═══════════════════════════════════════════════════════════════
+       VS CODE-STYLE UNIFIED FULL-WIDTH TITLE BAR
+       ═══════════════════════════════════════════════════════════════ -->
+  <header class="topbar" id="app-topbar">
+    <div class="topbar-left">
+      <div class="brand">
+        <img src="assets/logo.png" class="brand-logo-img" alt="AI Plate" style="width: 18px; height: 18px; max-width: 18px; max-height: 18px; object-fit: contain; border-radius: 4px; display: inline-block; flex-shrink: 0;" onerror="this.onerror=null;this.outerHTML='<span class=\'brand-icon\'>⚡</span>';">
+        <span class="brand-title">AI Plate</span>
+      </div>
+      <div class="topbar-sep"></div>
+      <button id="sidebar-toggle-btn" class="icon-btn sidebar-expand-btn" title="Toggle Sidebar">
+        <svg class="sidebar-icon-svg" viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2" fill="none">
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2" class="icon-frame"></rect>
+          <line x1="9" y1="3" x2="9" y2="21" class="icon-divider"></line>
+        </svg>
+      </button>
+      <div class="topbar-title" id="current-view-title">Chat</div>
+      <div class="topbar-working-indicator" id="topbar-working-indicator" title="Agent: Idle">
+        <span class="topbar-working-dot" id="topbar-working-dot"></span>
+      </div>
+    </div>
+
+    <!-- Center Title Pill (VS Code Command Center) -->
+    <div class="titlebar-center">
+      <div class="titlebar-search-pill" title="AI Plate — Open Power">
+        <span class="titlebar-search-text">AI Plate — Open Power</span>
+      </div>
+    </div>
+
+    <div class="topbar-right">
+      <div class="active-model-badge" id="badge-model" title="Active Reasoning Model">
+        nvidia/nemotron-3.5-lightning:free
+      </div>
+      <button id="btn-token-stats" class="icon-btn" title="View Full Token Analytics & Ledger">
+        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none">
+          <line x1="18" y1="20" x2="18" y2="10"></line>
+          <line x1="12" y1="20" x2="12" y2="4"></line>
+          <line x1="6" y1="20" x2="6" y2="14"></line>
+        </svg>
+      </button>
+      <button id="btn-auto-read" class="icon-btn" title="Auto-Read Responses (Kokoro TTS): OFF" aria-pressed="false">
+        <span class="auto-read-icon" style="font-size: 13px; line-height: 1;">🔇</span>
+      </button>
+      <button id="theme-toggle" class="icon-btn" title="Toggle Theme">
+        <svg class="sun-icon" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+        <svg class="moon-icon" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+      </button>
+      <button id="btn-reset" class="icon-btn" title="Clear Memory Context">
+        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><polyline points="1 4 1 10 7 10"></polyline><polyline points="23 20 23 14 17 14"></polyline><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path></svg>
+      </button>
+    </div>
+    <!-- Sleek Global Scroll Reading Indicator -->
+    <div class="scroll-progress-track">
+      <div id="scroll-progress-bar" class="scroll-progress-bar"></div>
+    </div>
+  </header>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       WORKSPACE LAYOUT (UNDERNEATH FULL-WIDTH TITLE BAR)
+       ═══════════════════════════════════════════════════════════════ -->
+  <div class="app-layout" id="app-layout">
+    
+    <!-- SLEEK COLLAPSIBLE SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <span class="sidebar-header-title">WORKSPACE</span>
+        <button id="sidebar-close-btn" class="icon-btn sidebar-toggle-btn" title="Collapse Sidebar">
+          <svg class="sidebar-icon-svg" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" class="icon-frame"></rect>
+            <line x1="9" y1="3" x2="9" y2="21" class="icon-divider"></line>
+            <polyline points="15 9 12 12 15 15" class="icon-arrow"></polyline>
+          </svg>
+        </button>
+      </div>
+
+      <!-- New Chat Quick Action -->
+      <div class="sidebar-action">
+        <button id="btn-new-chat" class="btn-new-chat">
+          <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          <span>New Chat</span>
+        </button>
+      </div>
+
+      <!-- Navigation Menu -->
+      <nav class="sidebar-nav">
+        <div class="nav-section-title">WORKSPACE</div>
+        <button class="nav-item active" data-tab="tab-chat">
+          <span class="nav-icon">💬</span>
+          <span class="nav-label">Chat</span>
+          <span class="nav-unvisited-dot hidden" id="nav-chat-unvisited-dot" title="Chat response ready"></span>
+        </button>
+        <button class="nav-item" data-tab="tab-kb">
+          <span class="nav-icon">📚</span>
+          <span class="nav-label">Knowledge Base</span>
+          <span class="nav-badge" id="kb-count-badge">0</span>
+        </button>
+        <button class="nav-item" data-tab="tab-sandbox">
+          <span class="nav-icon">📦</span>
+          <span class="nav-label">Artifacts & Workspace</span>
+          <span class="nav-badge" id="artifacts-count-badge">0</span>
+        </button>
+
+        <div class="nav-section-title nav-section-sessions">
+          <span>PAST CHATS</span>
+          <div class="sessions-header-actions">
+            <button id="btn-sort-sessions" class="icon-btn-sort" title="Sort: Recent First (Click for Oldest First)">
+              <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" stroke-width="2.2" fill="none">
+                <path d="M9 6h6M6 12h12M3 18h18"></path>
+              </svg>
+            </button>
+            <span class="nav-badge" id="session-count-badge">0</span>
+          </div>
+        </div>
+        <div class="sessions-list" id="sessions-list">
+          <!-- Session items dynamically injected -->
+        </div>
+      </nav>
+
+      <!-- Sidebar Footer Status & Settings Corner Button -->
+      <div class="sidebar-footer">
+        <div class="provider-pill" id="sidebar-provider-pill" title="Active Provider & Embedding">
+          <div class="status-indicator"></div>
+          <div class="provider-details">
+            <span class="provider-model" id="provider-name">OPENROUTER</span>
+            <span class="embedding-model-sub" id="embedding-name">liquid/lfm-2.5-embedding-350m:free</span>
+          </div>
+        </div>
+        <button class="icon-btn sidebar-settings-icon-btn" data-tab="tab-settings" id="btn-sidebar-settings" title="Settings & Models">
+          <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="2.2" fill="none">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Mobile Backdrop Overlay -->
+    <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         MAIN WORKSPACE CONTENT AREA
+         ═══════════════════════════════════════════════════════════════ -->
+    <div class="main-wrapper">
+
+      <!-- ─── TAB 1: CHAT VIEW (CLEAN & SLEEK) ──────────────────────── -->
+      <main id="tab-chat" class="tab-view active">
+        <div class="chat-container">
+          
+          <!-- Hero Section (Shown only when chat is empty) -->
+          <div class="chat-hero" id="chat-hero">
+            <div class="hero-glow-mark">
+              <img src="assets/logo.png" alt="AI Plate" class="hero-logo-img" onerror="this.onerror=null;this.outerHTML='<span class=\'hero-fallback-icon\'>⚡</span>';" />
+            </div>
+            <h1 class="hero-title">How can I assist you today?</h1>
+            <p class="hero-subtitle">Open Power</p>
+
+            <div class="hero-prompts">
+              <button class="hero-prompt-card prompt-chip" data-prompt="What is the current exchange rate of NZD to INR?">
+                <span class="card-icon">💱</span>
+                <div class="card-content">
+                  <span class="card-title">Live Forex Rates</span>
+                  <span class="card-desc">Search real-time NZD / INR currency stats</span>
+                </div>
+              </button>
+
+              <button class="hero-prompt-card prompt-chip" data-prompt="Write a Python script to generate a correlation heatmap with seaborn and save it to artifacts/heatmap.png.">
+                <span class="card-icon">📊</span>
+                <div class="card-content">
+                  <span class="card-title">Data Visualization</span>
+                  <span class="card-desc">Execute Python scripts & generate persistent charts</span>
+                </div>
+              </button>
+
+              <button class="hero-prompt-card prompt-chip" data-prompt="Derive the formula for compound interest and show it in LaTeX format.">
+                <span class="card-icon">📐</span>
+                <div class="card-content">
+                  <span class="card-title">LaTeX Mathematics</span>
+                  <span class="card-desc">Compute proofs and render KaTeX formulas</span>
+                </div>
+              </button>
+
+              <button class="hero-prompt-card prompt-chip" data-prompt="List all documents currently stored in the SQLite Vector Knowledge Base.">
+                <span class="card-icon">📚</span>
+                <div class="card-content">
+                  <span class="card-title">Vector RAG Query</span>
+                  <span class="card-desc">Inspect semantic memory & document chunks</span>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          <!-- Chat Stream Messages -->
+          <div id="chat-messages" class="chat-messages"></div>
+
+          <!-- Dropzone overlay for drag-and-drop file attachment -->
+          <div class="chat-dropzone" id="chat-dropzone">
+            <div class="dropzone-content">
+              <div class="dropzone-icon">📎</div>
+              <h3 class="dropzone-title">Drop files to attach to chat</h3>
+              <p class="dropzone-subtitle">Add documents, code, images, or data files to analyze in this conversation.</p>
+            </div>
+          </div>
+
+          <!-- Spacer for floating input -->
+          <div class="chat-spacer"></div>
+        </div>
+      </main>
+
+      <!-- ─── TAB 2: KNOWLEDGE BASE VIEW ────────────────────────────── -->
+      <main id="tab-kb" class="tab-view">
+        <div class="content-container">
+          <div class="view-header">
+            <div>
+              <h2 class="view-title">Knowledge Base</h2>
+              <p class="view-desc" id="kb-tagline">Persistent SQLite Vector Store with high-dimensional embeddings.</p>
+            </div>
+            <button class="btn btn-secondary btn-sm" id="btn-refresh-kb">🔄 Refresh</button>
+          </div>
+
+          <!-- Modern Upload Dropzone -->
+          <div class="dropzone" id="kb-dropzone">
+            <div class="dropzone-icon">📁</div>
+            <div class="dropzone-title">Drag & drop documents to ingest into Vector RAG</div>
+            <div class="dropzone-desc">Supports CSV, Markdown (.md), PDF, Text (.txt), and code files</div>
+            <input type="file" id="kb-file-input" class="file-input-hidden" multiple />
+            <button class="btn btn-primary" id="btn-browse-kb">Browse Files</button>
+          </div>
+
+          <div class="table-container">
+            <table class="data-table" id="kb-table">
+              <thead>
+                <tr>
+                  <th>Document Name</th>
+                  <th>Chunks</th>
+                  <th>Characters</th>
+                  <th>Ingested Date</th>
+                  <th style="text-align: right;">Action</th>
+                </tr>
+              </thead>
+              <tbody id="kb-table-body">
+                <tr>
+                  <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 32px;">
+                    No documents ingested yet. Drop files above to start semantic search.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="chat-spacer"></div>
+        </div>
+      </main>
+
+      <!-- ─── TAB 3: ARTIFACTS GALLERY & SCRATCHPAD VIEW ──────────────── -->
+      <main id="tab-sandbox" class="tab-view">
+        <div class="content-container">
+          
+          <!-- Section A: Persistent Deliverable Artifacts -->
+          <div class="view-header">
+            <div>
+              <h2 class="view-title">📦 Artifacts & Deliverables</h2>
+              <p class="view-desc">Persistent storage directory (<code>artifacts/</code>) for meaningful outputs, generated plots, CSV exports, and reports.</p>
+            </div>
+            <div class="view-actions">
+              <button class="btn btn-secondary btn-sm" id="btn-refresh-artifacts">🔄 Refresh</button>
+            </div>
+          </div>
+
+          <div class="artifacts-grid" id="artifacts-grid">
+            <!-- Populated dynamically with persistent artifacts -->
+          </div>
+
+          <!-- Section B: Ephemeral Sandbox Scratchpad -->
+          <div class="view-header" style="margin-top: 48px;">
+            <div>
+              <h3 class="view-title" style="font-size: 18px;">🧪 Sandbox Scratchpad</h3>
+              <p class="view-desc">Temporary isolated execution folder (<code>.sandbox/</code>) for ad-hoc scripts and intermediate test runs.</p>
+            </div>
+            <div class="view-actions">
+              <button class="btn btn-secondary btn-sm" id="btn-refresh-sandbox">🔄 Refresh</button>
+              <button class="btn btn-danger btn-sm" id="btn-clean-sandbox">🧹 Clear Scratchpad</button>
+            </div>
+          </div>
+
+          <div class="sandbox-grid" id="sandbox-grid">
+            <!-- Populated dynamically with temporary scratchpad files -->
+          </div>
+
+          <div class="chat-spacer"></div>
+        </div>
+      </main>
+
+      <!-- Settings is now a floating modal — see #settings-modal below -->
+
+
+      <!-- ═══════════════════════════════════════════════════════════════
+           FLOATING MINIMALIST INPUT DOCK (WITH THINKING BAR)
+           ═══════════════════════════════════════════════════════════════ -->
+      <div class="dock-wrapper" id="dock-container">
+        <!-- Floating Jump to Bottom Indicator Button -->
+        <button id="btn-scroll-bottom" class="scroll-bottom-btn hidden" title="Jump to latest message">
+          <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2.5" fill="none">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <polyline points="19 12 12 19 5 12"></polyline>
+          </svg>
+          <span class="scroll-unread-pulse" id="scroll-unread-pulse"></span>
+        </button>
+
+        <!-- Attachment preview tray for files queued to embed -->
+        <div class="dock-attachments" id="dock-attachments" style="display: none;"></div>
+
+        <!-- Sleek Live Cognitive Reasoning & Thinking Depth Control -->
+        <div class="dock-thinking-bar" id="dock-thinking-bar" title="Adjust model reasoning depth and tool execution limits">
+          <div class="thinking-bar-left">
+            <span class="thinking-brain-pulse">🧠</span>
+            <span class="thinking-bar-label">Reasoning:</span>
+            <div class="thinking-chips" id="thinking-chips-group">
+              <button type="button" class="thinking-chip" data-level="off" title="Direct Mode: Fast immediate response (Max 10 tool loops)">
+                <span class="chip-icon">⚡</span> Fast
+              </button>
+              <button type="button" class="thinking-chip" data-level="low" title="Quick Thought: Brief constraint check (Max 15 tool loops, 1k tokens)">
+                <span class="chip-icon">💡</span> Quick
+              </button>
+              <button type="button" class="thinking-chip" data-level="medium" title="Balanced: Step-by-step reasoning (Max 25 tool loops, 4k tokens)">
+                <span class="chip-icon">⚖️</span> Balanced
+              </button>
+              <button type="button" class="thinking-chip active" data-level="high" title="Deep Reasoning: Multi-stage breakdown & validation (Max 40 tool loops, 12k tokens)">
+                <span class="chip-icon">🧠</span> Deep
+              </button>
+              <button type="button" class="thinking-chip" data-level="max" title="Max Exhaustive: Full problem mapping & self-critique (Max 60 tool loops, 32k tokens)">
+                <span class="chip-icon">🚀</span> Max
+              </button>
+            </div>
+          </div>
+          <div class="thinking-bar-right">
+            <div class="thinking-tokens-badge" id="thinking-tokens-badge" title="Live context token usage (History + Input / Max budget). Click for breakdown.">
+              <span class="tokens-badge-icon">🪙</span>
+              <span class="tokens-badge-text" id="thinking-tokens-value">0 / 8,192 tok</span>
+            </div>
+            <span class="thinking-loops-badge" id="thinking-loops-badge">40 loops</span>
+          </div>
+
+          <!-- Context Tokens Breakdown Popover -->
+          <div class="context-tokens-popover hidden" id="context-tokens-popover">
+            <div class="tokens-popover-header">
+              <span class="tokens-popover-title">🪙 Real-Time Token Context</span>
+              <span class="tokens-popover-pct" id="tokens-popover-pct">0%</span>
+            </div>
+            <div class="tokens-progress-bar-bg">
+              <div class="tokens-progress-bar-fill" id="tokens-progress-bar-fill" style="width: 0%"></div>
+            </div>
+            <div class="tokens-popover-details">
+              <div class="tokens-popover-row">
+                <span class="row-label">💬 Conversation History:</span>
+                <span class="row-val" id="popover-history-tokens">0 tok (0 turns)</span>
+              </div>
+              <div class="tokens-popover-row">
+                <span class="row-label">✍️ Active Input Draft:</span>
+                <span class="row-val" id="popover-draft-tokens">0 tok</span>
+              </div>
+              <div class="tokens-popover-row">
+                <span class="row-label">🎯 Max Context Budget:</span>
+                <span class="row-val" id="popover-max-tokens">8,192 tok</span>
+              </div>
+              <div class="tokens-popover-row tokens-saved-row">
+                <span class="row-label">🗜️ Saved by Compressor:</span>
+                <span class="row-val" id="popover-saved-tokens">0 tok</span>
+              </div>
+            </div>
+            <div class="tokens-popover-actions">
+              <button type="button" class="btn-clean popover-btn" id="popover-btn-ledger">📊 Full Ledger</button>
+              <button type="button" class="btn-clean popover-btn" id="popover-btn-compress">🗜️ Compress Now</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Dynamic Plugin Command Palette / Quick Action Menu -->
+        <div class="chat-command-palette hidden" id="chat-command-palette">
+          <div class="palette-header">
+            <span class="palette-title">🧩 Plugin Quick Actions &amp; Commands</span>
+            <span class="palette-badge" id="palette-plugin-count">0 tools</span>
+          </div>
+          <div class="palette-list" id="palette-list">
+            <!-- Dynamically populated from active installed plugins -->
+          </div>
+          <div class="palette-footer">
+            <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
+            <span><kbd>Enter</kbd> / <kbd>Tab</kbd> select</span>
+            <span><kbd>Esc</kbd> close</span>
+          </div>
+        </div>
+
+        <div class="dock-glass">
+          <input type="file" id="chat-file-input" multiple style="display: none;" />
+          <button class="dock-attach-btn" id="btn-dock-attach" title="Attach file as vector embedding">
+            <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none">
+              <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
+            </svg>
+          </button>
+
+          <button class="dock-attach-btn dock-tools-btn" id="btn-chat-tools" title="Quick Tools &amp; Commands (Type /)" type="button">
+            <span class="dock-tools-icon" style="font-size: 15px; font-weight: bold; line-height: 1;">🧩</span>
+          </button>
+          
+          <select id="chat-mode" class="chat-mode-select" aria-label="Chat mode" title="Choose how AI Plate helps">
+            <option value="normal">Normal</option>
+            <option value="plan">Plan</option>
+            <option value="code">Code</option>
+          </select>
+          <textarea
+            id="user-input"
+            rows="1"
+            placeholder="Ask AI Plate anything, type / for quick tools &amp; actions..."
+            autofocus
+          ></textarea>
+
+          <button id="btn-mic-input" class="dock-attach-btn dock-mic-btn" title="Voice Input (Moonshine STT)" aria-label="Voice input" type="button">
+            <span class="mic-icon-idle">
+              <svg viewBox="0 0 24 24" width="17" height="17" stroke="currentColor" stroke-width="2" fill="none">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                <line x1="12" y1="19" x2="12" y2="23"></line>
+                <line x1="8" y1="23" x2="16" y2="23"></line>
+              </svg>
+            </span>
+            <span class="mic-icon-rec" style="display: none;">
+              <span class="mic-recording-pulse"></span>
+            </span>
+          </button>
+
+          <button id="send-btn" class="send-btn" title="Send message (Enter)" aria-label="Send message">
+            <span class="btn-icon send-icon">
+              <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none">
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+              </svg>
+            </span>
+            <span class="btn-icon stop-icon" style="display: none;">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                <rect x="5" y="5" width="14" height="14" rx="2"></rect>
+              </svg>
+            </span>
+          </button>
+        </div>
+        <div class="dock-hint">
+          <span><kbd>Enter</kbd> to send • <kbd>Esc</kbd> to stop • <span class="dock-embed-hint"><svg class="dock-clip-icon" viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2.2" fill="none"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>Drop files to embed</span></span>
+          <span class="engine-tag" id="footer-engine-tag">⚡ Ready</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       MODAL: TOKEN ANALYTICS & STATS WINDOW
+       ═══════════════════════════════════════════════════════════════ -->
+  <div id="token-stats-modal" class="modal-overlay hidden">
+    <div class="modal-card token-modal-card">
+      <div class="modal-header">
+        <div class="token-modal-header-left">
+          <span class="token-modal-header-icon">📊</span>
+          <div>
+            <span class="modal-title">Token Analytics & Ledger</span>
+            <div class="token-modal-subtitle">Real-time breakdown of LLM Reasoning & Vector Embedding Tokens</div>
+          </div>
+        </div>
+        <button id="token-stats-close" class="icon-btn" title="Close (Esc)">✕</button>
+      </div>
+
+      <div class="modal-body token-modal-body">
+        <!-- Key Metrics Cards -->
+        <div class="token-stats-grid">
+          <div class="token-stat-card">
+            <div class="stat-label">TOTAL TOKENS</div>
+            <div class="stat-value" id="stats-total-tokens">0</div>
+            <div class="stat-detail">Combined inference & embeddings</div>
+          </div>
+          <div class="token-stat-card">
+            <div class="stat-label">LLM INPUT (PROMPT)</div>
+            <div class="stat-value stat-accent" id="stats-prompt-tokens">0</div>
+            <div class="stat-detail">Context, system & user input</div>
+          </div>
+          <div class="token-stat-card">
+            <div class="stat-label">LLM OUTPUT (GENERATION)</div>
+            <div class="stat-value stat-success" id="stats-completion-tokens">0</div>
+            <div class="stat-detail">Model responses & tool calls</div>
+          </div>
+          <div class="token-stat-card">
+            <div class="stat-label">VECTOR EMBEDDINGS</div>
+            <div class="stat-value stat-info" id="stats-embed-tokens">0</div>
+            <div class="stat-detail">RAG queries, memory & ingest</div>
+          </div>
+        </div>
+
+        <!-- Token Ratio Bar -->
+        <div class="token-ratio-wrapper">
+          <div class="token-ratio-bar">
+            <div class="ratio-segment ratio-prompt" id="ratio-prompt" style="width: 50%" title="Prompt Tokens"></div>
+            <div class="ratio-segment ratio-completion" id="ratio-completion" style="width: 40%" title="Completion Tokens"></div>
+            <div class="ratio-segment ratio-embed" id="ratio-embed" style="width: 10%" title="Embedding Tokens"></div>
+          </div>
+          <div class="token-ratio-legend">
+            <span class="legend-item"><span class="legend-dot dot-prompt"></span> LLM Input (<span id="pct-prompt">0%</span>)</span>
+            <span class="legend-item"><span class="legend-dot dot-completion"></span> LLM Output (<span id="pct-completion">0%</span>)</span>
+            <span class="legend-item"><span class="legend-dot dot-embed"></span> Embeddings (<span id="pct-embed">0%</span>)</span>
+          </div>
+        </div>
+
+        <!-- Turn Ledger Header & Table -->
+        <div class="token-ledger-header">
+          <div class="token-ledger-title">Turn-by-Turn Interaction Ledger</div>
+          <button class="btn-clean" id="btn-clear-token-ledger" title="Clear token history">Clear History</button>
+        </div>
+
+        <div class="token-table-container">
+          <table class="token-stats-table">
+            <thead>
+              <tr>
+                <th class="col-turn">#</th>
+                <th class="col-time">Time</th>
+                <th class="col-model">Model</th>
+                <th class="col-num">Input</th>
+                <th class="col-num">Output</th>
+                <th class="col-num">Embed</th>
+                <th class="col-num">Total</th>
+                <th class="col-latency">Latency</th>
+                <th class="col-skills">Triggered Skills</th>
+              </tr>
+            </thead>
+            <tbody id="token-ledger-tbody">
+              <tr>
+                <td colspan="9" class="empty-table">No interaction tokens recorded yet in this session.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       MODAL: LIGHTBOX & CODE INSPECTOR
+       ═══════════════════════════════════════════════════════════════ -->
+  <div id="modal-container" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <span class="modal-title" id="modal-title">File Preview</span>
+        <button id="modal-close" class="icon-btn">✕</button>
+      </div>
+      <div class="modal-body" id="modal-body"></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       MODAL: SHARE ARTIFACT TO WEB
+       ═══════════════════════════════════════════════════════════════ -->
+  <div id="share-artifact-modal" class="modal-overlay hidden">
+    <div class="share-artifact-card">
+      <div class="share-artifact-header">
+        <div class="share-artifact-icon-wrap">🌐</div>
+        <div class="share-artifact-titles">
+          <h3 class="share-artifact-title">Share Artifact to Web</h3>
+          <p class="share-artifact-desc">Your artifact is live and accessible on any device or browser.</p>
+        </div>
+        <button type="button" class="icon-btn share-artifact-close" id="share-artifact-close" title="Close">✕</button>
+      </div>
+      <div class="share-artifact-body">
+        <div class="share-artifact-meta-card">
+          <span class="share-artifact-file-icon" id="share-artifact-icon">🎮</span>
+          <div class="share-artifact-file-details">
+            <span class="share-artifact-filename" id="share-artifact-filename">artifact.html</span>
+            <span class="share-artifact-filesize" id="share-artifact-filesize">Web Artifact</span>
+          </div>
+          <span class="share-artifact-status-pill">🟢 Live</span>
+        </div>
+
+        <div class="share-artifact-url-group">
+          <label class="share-artifact-label">Public Live URL</label>
+          <div class="share-artifact-input-wrap">
+            <input type="text" id="share-artifact-url-input" class="custom-input share-url-input" readonly />
+            <button type="button" class="btn btn-primary share-btn-copy" id="share-btn-copy">📋 Copy</button>
+          </div>
+        </div>
+
+        <div class="share-artifact-actions">
+          <button type="button" class="btn btn-secondary share-btn-open" id="share-btn-open">🚀 Open in Browser</button>
+          <button type="button" class="btn btn-secondary share-btn-done" id="share-btn-done">Done</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       THEMED CONFIRMATION & ACTION MODAL
+       ═══════════════════════════════════════════════════════════════ -->
+  <div id="confirm-modal" class="modal-overlay hidden">
+    <div class="confirm-modal-card">
+      <div class="confirm-modal-header">
+        <div class="confirm-modal-icon-wrap" id="confirm-modal-icon-wrap">
+          <span class="confirm-modal-icon" id="confirm-modal-icon">🗑️</span>
+        </div>
+        <div class="confirm-modal-titles">
+          <h3 class="confirm-modal-title" id="confirm-modal-title">Confirm Action</h3>
+          <p class="confirm-modal-desc" id="confirm-modal-desc">Are you sure you want to proceed?</p>
+        </div>
+      </div>
+      <div class="confirm-modal-actions">
+        <button type="button" class="btn btn-secondary confirm-btn-cancel" id="confirm-btn-cancel">Cancel</button>
+        <button type="button" class="btn btn-danger confirm-btn-action" id="confirm-btn-action">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       MODAL: SETTINGS & CONFIGURATION (Left Sidebar Layout)
+       ═══════════════════════════════════════════════════════════════ -->
+  <div id="settings-modal" class="settings-modal-overlay hidden">
+    <div class="settings-modal-card">
+      
+      <!-- ─── LEFT SIDEBAR: Navigation Tabs ─── -->
+      <aside class="settings-modal-sidebar">
+        <div class="settings-sidebar-header">
+          <div class="settings-brand-icon-wrap">⚙️</div>
+          <div class="settings-sidebar-title-group">
+            <span class="settings-sidebar-title">Settings</span>
+            <span class="settings-sidebar-subtitle">Preferences &amp; Tools</span>
+          </div>
+        </div>
+
+        <nav class="settings-modal-nav">
+          <div class="settings-nav-section">GENERAL &amp; SANCTUARY</div>
+          <button class="settings-tab-btn active" data-settings-tab="tab-settings-general" id="btn-settings-tab-general">
+            <span class="tab-btn-icon">🌐</span>
+            <span class="tab-btn-label">General &amp; Memory</span>
+          </button>
+
+          <div class="settings-nav-section" style="margin-top: 10px;">WORKSPACE</div>
+          <button class="settings-tab-btn" data-settings-tab="tab-settings-models">
+            <span class="tab-btn-icon">🤖</span>
+            <span class="tab-btn-label">Models &amp; Reasoning</span>
+          </button>
+          <button class="settings-tab-btn" data-settings-tab="tab-settings-skills">
+            <span class="tab-btn-icon">🧠</span>
+            <span class="tab-btn-label">Skills &amp; Directives</span>
+            <span class="skills-active-badge" id="skills-active-count">0/6</span>
+          </button>
+          <button class="settings-tab-btn" data-settings-tab="tab-settings-plugins">
+            <span class="tab-btn-icon">🔌</span>
+            <span class="tab-btn-label">Plugins &amp; Tools</span>
+            <span class="plugins-active-badge" id="plugins-active-count">3/3</span>
+          </button>
+
+          <div class="settings-nav-section" style="margin-top: 10px;">INTEGRATIONS &amp; APPS</div>
+          <button class="settings-tab-btn" data-settings-tab="tab-settings-connectors">
+            <span class="tab-btn-icon">🔗</span>
+            <span class="tab-btn-label">App Connectors</span>
+            <span class="connectors-active-badge" id="connectors-active-count">0/4</span>
+          </button>
+
+          <div class="settings-nav-section" style="margin-top: 10px;">GOVERNANCE</div>
+          <button class="settings-tab-btn" data-settings-tab="tab-settings-security">
+            <span class="tab-btn-icon">🛡️</span>
+            <span class="tab-btn-label">Security &amp; Permissions</span>
+            <span class="security-policy-dot dot-balanced" id="security-mode-badge" title="Security: Balanced"></span>
+          </button>
+
+          <div class="settings-nav-section" style="margin-top: 10px;">SYSTEM &amp; CONFIG</div>
+          <button class="settings-tab-btn" data-settings-tab="tab-settings-system-config">
+            <span class="tab-btn-icon">⚙️</span>
+            <span class="tab-btn-label">Config &amp; Environment</span>
+          </button>
+        </nav>
+
+        <div class="settings-sidebar-footer">
+          <span class="settings-brand-pill"><img src="assets/logo.png" style="width: 13px; height: 13px; object-fit: contain; border-radius: 3px; vertical-align: middle; margin-right: 5px;" alt="logo">AI Plate • Open Power</span>
+        </div>
+      </aside>
+
+      <!-- ─── RIGHT MAIN PANEL: Content ─── -->
+      <div class="settings-modal-content">
+        <div class="settings-content-header">
+          <div class="settings-header-text">
+            <h3 class="settings-view-title" id="settings-view-title">General &amp; Personal Memory</h3>
+            <p class="settings-view-desc" id="settings-view-desc">Personalize your butler, configure language &amp; chat interactions, and manage your sovereign Living Dossier.</p>
+          </div>
+          <button id="settings-modal-close" class="icon-btn settings-close-btn" title="Close Settings (Esc)">✕</button>
+        </div>
+
+        <div class="settings-modal-body">
+          <!-- ─── TAB 0: GENERAL & SOVEREIGN PERSONAL MEMORY ─── -->
+          <div class="settings-tab-pane active" id="tab-settings-general">
+            <div class="settings-grid">
+
+              <!-- Card 1: Butler Identity & Addressing -->
+              <div class="settings-card">
+                <div class="card-head">
+                  <span class="card-head-icon">🎩</span>
+                  <h3>Butler Identity &amp; Addressing</h3>
+                </div>
+                <p class="card-sub">How AI Plate addresses you and conducts conversations.</p>
+
+                <div class="form-group">
+                  <label for="general-user-name">Your Preferred Name / Title</label>
+                  <input type="text" id="general-user-name" class="custom-input" placeholder="e.g. Alex, Sir, Madam, Doctor" />
+                  <span class="input-hint">AI Plate immediately addresses you with this name across all chat sessions.</span>
+                </div>
+
+                <div class="form-group">
+                  <label for="general-butler-tone">Butler Demeanor &amp; Tone</label>
+                  <select id="general-butler-tone" class="custom-select">
+                    <option value="butler">Courteous Genius Butler (Warm, poised, discrete)</option>
+                    <option value="concise">Executive Brevity (Direct, bulleted, zero fluff)</option>
+                    <option value="friendly">Warm &amp; Collaborative (Friendly, conversational)</option>
+                    <option value="academic">Academic &amp; Rigorous (Formal, deeply analytical)</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Card 2: Language & Regional Preferences -->
+              <div class="settings-card">
+                <div class="card-head">
+                  <span class="card-head-icon">🌐</span>
+                  <h3>Language &amp; Regional</h3>
+                </div>
+                <p class="card-sub">Customize interface localization and assistant response dialect.</p>
+
+                <div class="form-group">
+                  <label for="general-ui-language">Interface Language</label>
+                  <select id="general-ui-language" class="custom-select">
+                    <option value="en">English (Default)</option>
+                    <option value="es">Español (Spanish)</option>
+                    <option value="fr">Français (French)</option>
+                    <option value="de">Deutsch (German)</option>
+                    <option value="hi">हिन्दी (Hindi)</option>
+                    <option value="ja">日本語 (Japanese)</option>
+                    <option value="zh">中文 (Chinese Simplified)</option>
+                    <option value="pt">Português (Portuguese)</option>
+                    <option value="ru">Русский (Russian)</option>
+                    <option value="ar">العربية (Arabic)</option>
+                  </select>
+                </div>
+
+                <div class="form-group">
+                  <label for="general-response-language">AI Response Language</label>
+                  <select id="general-response-language" class="custom-select">
+                    <option value="match_ui">Match Interface Language</option>
+                    <option value="auto">Auto-detect from user prompt</option>
+                    <option value="en">Always English</option>
+                    <option value="es">Always Spanish</option>
+                    <option value="hi">Always Hindi</option>
+                    <option value="fr">Always French</option>
+                    <option value="de">Always German</option>
+                    <option value="ja">Always Japanese</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Card 3: Chat & Keyboard Interaction -->
+              <div class="settings-card">
+                <div class="card-head">
+                  <span class="card-head-icon">⌨️</span>
+                  <h3>Chat &amp; Keyboard Interaction</h3>
+                </div>
+                <p class="card-sub">Tailor input behavior, scrolling dynamics, and feedback sounds.</p>
+
+                <div class="form-group">
+                  <label for="general-send-shortcut">Send Message Key</label>
+                  <select id="general-send-shortcut" class="custom-select">
+                    <option value="enter">Enter to Send (Shift + Enter for new line)</option>
+                    <option value="ctrl_enter">Ctrl + Enter to Send (Enter for new line)</option>
+                  </select>
+                  <span class="input-hint">Choose "Ctrl+Enter" if you write long prompts with multiple paragraphs.</span>
+                </div>
+
+                <div class="general-toggles-grid">
+                  <label class="toggle-row">
+                    <input type="checkbox" id="general-token-streaming" checked />
+                    <div>
+                      <strong data-i18n="general.token_streaming_title">Real-Time Token Streaming</strong>
+                      <p data-i18n="general.token_streaming_desc">Stream responses token-by-token with natural character cadence rather than displaying entire paragraphs at once.</p>
+                    </div>
+                  </label>
+
+                  <label class="toggle-row">
+                    <input type="checkbox" id="general-auto-scroll" checked />
+                    <div>
+                      <strong>Auto-Scroll Chat</strong>
+                      <p>Automatically follow responses as they stream in.</p>
+                    </div>
+                  </label>
+
+                  <label class="toggle-row">
+                    <input type="checkbox" id="general-audio-cues" checked />
+                    <div>
+                      <strong>Audio Feedback &amp; Chimes</strong>
+                      <p>Play subtle soft chimes when tasks or long reasoning steps complete.</p>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              <!-- Card 4: App Closing & Startup Lifecycle -->
+              <div class="settings-card">
+                <div class="card-head">
+                  <span class="card-head-icon">🚪</span>
+                  <h3>App Closing &amp; Startup</h3>
+                </div>
+                <p class="card-sub">Configure boot behavior, tray minimization, and exit mechanisms.</p>
+
+                <div class="form-group">
+                  <label for="general-close-action">Window Close Button Action</label>
+                  <select id="general-close-action" class="custom-select">
+                    <option value="tray">Minimize to System Tray (Keep running in background)</option>
+                    <option value="quit">Quit Application Completely (Terminate all processes)</option>
+                    <option value="ask">Ask Every Time (Prompt on close)</option>
+                  </select>
+                  <span class="input-hint">Controls what happens when clicking the window ✕ button or pressing Alt+F4.</span>
+                </div>
+
+                <div class="general-toggles-grid">
+                  <label class="toggle-row">
+                    <input type="checkbox" id="general-confirm-quit" />
+                    <div>
+                      <strong>Confirm Before Quitting</strong>
+                      <p>Show a confirmation prompt before closing to prevent accidental shutdowns.</p>
+                    </div>
+                  </label>
+
+                  <label class="toggle-row">
+                    <input type="checkbox" id="general-launch-startup" />
+                    <div>
+                      <strong>Launch on System Startup</strong>
+                      <p>Automatically start AI Plate when logging into your computer.</p>
+                    </div>
+                  </label>
+
+                  <label class="toggle-row">
+                    <input type="checkbox" id="general-start-minimized" />
+                    <div>
+                      <strong>Start Minimized to Tray</strong>
+                      <p>Launch quietly in the background without popping open the main window.</p>
+                    </div>
+                  </label>
+
+                  <label class="toggle-row">
+                    <input type="checkbox" id="general-restore-session" checked />
+                    <div>
+                      <strong>Restore Last Active Session</strong>
+                      <p>Automatically resume your most recent chat session when launching.</p>
+                    </div>
+                  </label>
+                </div>
+
+                <div style="margin-top: 14px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: space-between;">
+                  <span style="font-size: 11.5px; color: var(--text-muted, #71717a);">Need to fully shut down AI Plate right now?</span>
+                  <button type="button" class="btn-danger-outline" id="btn-quit-app-now" style="font-size: 11.5px; padding: 5px 12px; display: inline-flex; align-items: center; gap: 6px;">
+                    <span>🛑</span> Quit AI Plate
+                  </button>
+                </div>
+              </div>
+
+              <!-- Card 5: Local Storage & Data Sanctuary -->
+              <div class="settings-card">
+                <div class="card-head">
+                  <span class="card-head-icon">🛡️</span>
+                  <h3>Storage &amp; Data Sanctuary</h3>
+                </div>
+                <p class="card-sub">All personal memory, documents, and chat records remain 100% on your local machine.</p>
+
+                <div class="form-group">
+                  <label>Local SQLite Database Location</label>
+                  <div class="input-with-action">
+                    <input type="text" id="general-db-path" class="custom-input" readonly value="agent_data.db" />
+                    <button type="button" class="btn btn-secondary btn-sm" id="btn-copy-db-path" title="Copy Path">📋 Copy</button>
+                  </div>
+                </div>
+
+                <div class="card-actions-row">
+                  <button type="button" class="btn btn-secondary btn-sm" id="btn-export-sanctuary">
+                    <span>📥 Export All Data (JSON)</span>
+                  </button>
+                  <button type="button" class="btn btn-secondary btn-sm btn-danger-soft" id="btn-clear-chat-cache">
+                    <span>🧹 Clear Session Cache</span>
+                  </button>
+                  <button type="button" class="btn btn-secondary btn-sm" id="btn-launch-onboarding-tour" onclick="if (typeof closeSettingsModal === 'function') closeSettingsModal(); if (typeof openOnboardingModal === 'function') openOnboardingModal(true);" style="border-color: rgba(99, 102, 241, 0.4); background: rgba(99, 102, 241, 0.12); color: #818cf8; cursor: pointer;">
+                    <span>🚀 Launch Welcome Tour</span>
+                  </button>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- Full-Width Card: 3-Tier Sovereign Personal Memory & Living Dossier -->
+            <div class="dossier-full-card">
+              <div class="dossier-header">
+                <div class="dossier-header-left">
+                  <span class="dossier-icon">🧠</span>
+                  <div>
+                    <h3 class="dossier-title">Sovereign Personal Memory &amp; Living Dossier</h3>
+                    <p class="dossier-sub">3-Tier Cognitive Memory: Dynamic Conflict Resolution + Behavioral Reflection + On-Device <code>USER_PROFILE.md</code>.</p>
+                  </div>
+                </div>
+                <div class="dossier-header-right">
+                  <label class="dossier-auto-learn-label" title="Automatically extract personal identity facts and learn habits from conversation turns">
+                    <input type="checkbox" id="general-auto-learn" checked />
+                    <span>Auto-Learn Memories</span>
+                  </label>
+                  <button type="button" class="btn btn-secondary btn-sm" id="btn-refresh-dossier" title="Reload and synchronize living dossier">
+                    <span>🔄 Refresh</span>
+                  </button>
+                  <button type="button" class="btn btn-secondary btn-sm" id="btn-open-dossier-file" title="Reveal USER_PROFILE.md in Windows File Explorer">
+                    <span>📁 Reveal in Folder</span>
+                  </button>
+                  <button type="button" class="btn btn-secondary btn-sm btn-danger-soft" id="btn-wipe-dossier" title="Wipe all saved facts and reflections">
+                    <span>🗑️ Wipe Memory</span>
+                  </button>
+                  <button type="button" class="btn btn-primary btn-sm" id="btn-add-fact-trigger">
+                    <span>+ Add Fact</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Memory Tabs Pill Selector -->
+              <div class="dossier-nav-pills">
+                <button type="button" class="dossier-pill active" data-dossier-view="facts" id="pill-dossier-facts">
+                  <span>🗂️ Active Facts (<span id="dossier-facts-badge">0</span>)</span>
+                </button>
+                <button type="button" class="dossier-pill" data-dossier-view="reflections" id="pill-dossier-reflections">
+                  <span>💡 Learned Habits &amp; Reflections (<span id="dossier-reflections-badge">0</span>)</span>
+                </button>
+                <button type="button" class="dossier-pill" data-dossier-view="markdown" id="pill-dossier-markdown">
+                  <span>📄 USER_PROFILE.md Preview</span>
+                </button>
+              </div>
+
+              <!-- View 1: Active Facts Grid -->
+              <div class="dossier-view-pane active" id="dossier-view-facts">
+                <div class="dossier-facts-list" id="dossier-facts-container">
+                  <div class="dossier-empty-state">
+                    <span class="empty-icon">🪪</span>
+                    <p>No personal facts recorded yet. Introduce yourself in chat (e.g. <em>"My name is Alex"</em>) or click <strong>+ Add Fact</strong>.</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- View 2: Learned Reflections List -->
+              <div class="dossier-view-pane" id="dossier-view-reflections">
+                <div class="dossier-reflections-list" id="dossier-reflections-container">
+                  <div class="dossier-empty-state">
+                    <span class="empty-icon">🧠</span>
+                    <p>The reflection engine will synthesize working style insights as you talk to your butler.</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- View 3: Raw Markdown Dossier -->
+              <div class="dossier-view-pane" id="dossier-view-markdown">
+                <div class="dossier-markdown-box">
+                  <pre><code id="dossier-markdown-content" class="language-markdown">Loading USER_PROFILE.md...</code></pre>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- ─── TAB 1: MODELS & REASONING ─── -->
+          <div class="settings-tab-pane" id="tab-settings-models">
+            <div class="settings-grid">
+              <!-- Reasoning Model Card -->
+              <div class="settings-card">
+                <div class="card-head">
+                  <span class="card-head-icon">🤖</span>
+                  <h3>LLM Reasoning Model</h3>
+                </div>
+                <p class="card-sub">Choose provider and reasoning model for prompt execution.</p>
+
+                <div class="form-group">
+                  <label for="select-provider">AI Provider</label>
+                  <select id="select-provider" class="custom-select">
+                    <option value="gemini" selected>Google Gemini</option>
+                    <option value="openrouter">OpenRouter</option>
+                    <option value="openai">OpenAI</option>
+                    <option value="anthropic">Anthropic Claude</option>
+                    <option value="ollama">Ollama (Local)</option>
+                    <option value="lmstudio">LM Studio (Local)</option>
+                    <option value="groq">Groq</option>
+                    <option value="deepseek">DeepSeek</option>
+                  </select>
+                </div>
+
+                <div class="form-group">
+                  <label for="select-model">Model Identifier</label>
+                  <div class="form-row">
+                    <select id="select-model" class="custom-select flex-1"></select>
+                    <input type="text" id="custom-model-input" class="custom-input flex-1" placeholder="Or custom model ID..." />
+                  </div>
+                </div>
+              </div>
+
+              <!-- Embedding Model Card -->
+              <div class="settings-card">
+                <div class="card-head">
+                  <span class="card-head-icon">🔮</span>
+                  <h3>Vector Embedding Model (RAG)</h3>
+                </div>
+                <p class="card-sub">Configure embedding model used for SQLite memory and document search.</p>
+
+                <div class="form-group">
+                  <label for="select-embedding-provider">Embedding Provider</label>
+                  <select id="select-embedding-provider" class="custom-select">
+                    <option value="openrouter">OpenRouter</option>
+                    <option value="gemini">Google Gemini</option>
+                    <option value="openai">OpenAI</option>
+                    <option value="ollama">Ollama (Local)</option>
+                    <option value="lmstudio">LM Studio (Local)</option>
+                    <option value="groq">Groq</option>
+                    <option value="deepseek">DeepSeek</option>
+                    <option value="anthropic">Anthropic</option>
+                  </select>
+                </div>
+
+                <div class="form-group">
+                  <label for="select-embedding-model">Embedding Model</label>
+                  <div class="form-row">
+                    <select id="select-embedding-model" class="custom-select flex-1"></select>
+                    <input type="text" id="custom-embedding-model-input" class="custom-input flex-1" placeholder="Or custom embedding ID (e.g. liquid/lfm-2.5-embedding-350m:free)..." />
+                  </div>
+                  <div class="hint-box">
+                    💡 <strong>Liquid LFM 2.5 Free:</strong> <code>liquid/lfm-2.5-embedding-350m:free</code> is a high-speed 1024-dimension free embedding model on OpenRouter.
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="settings-footer">
+              <button class="btn btn-primary" id="btn-save-settings">💾 Apply Settings</button>
+              <span id="settings-feedback" class="settings-feedback"></span>
+            </div>
+          </div>
+
+          <!-- ─── TAB: SKILLS & COGNITIVE DIRECTIVES (REASONING SCRIPTS) ─── -->
+          <div class="settings-tab-pane" id="tab-settings-skills">
+            <!-- Header & Filter Mode Bar -->
+            <div class="skills-banner-card">
+              <div class="skills-banner-main">
+                <div class="skills-banner-icon">🧠</div>
+                <div class="skills-banner-text">
+                  <div class="skills-banner-title-row">
+                    <h4 class="skills-banner-h4">Skills &amp; Cognitive Directives</h4>
+                    <span class="skills-mode-tag" id="skills-current-mode-tag">⚡ Smart Intent Filter</span>
+                  </div>
+                  <p class="skills-banner-p">
+                    Modular scripts that alter how the LLM reasons, self-audits, and structures output. Inspired by 
+                    <a href="#" class="skills-inline-link" data-url="https://github.com/blader/humanizer">blader/humanizer</a> 
+                    and 
+                    <a href="#" class="skills-inline-link" data-url="https://github.com/obra/superpowers">obra/superpowers</a>.
+                  </p>
+                </div>
+              </div>
+
+              <!-- Filter Mode Selector & Quick Actions -->
+              <div class="skills-banner-controls">
+                <div class="skills-mode-switch-group">
+                  <label class="skills-control-label">Injection Mode:</label>
+                  <div class="segmented-control" id="skills-mode-segmented">
+                    <button type="button" class="seg-btn active" data-mode="smart_filter" title="Dynamically triggers skills matching prompt keywords and intent (e.g. humanizer for writing, TDD/debugging for code)">
+                      ⚡ Smart Filter
+                    </button>
+                    <button type="button" class="seg-btn" data-mode="always_active" title="Always injects all enabled skills into the LLM system prompt for every turn">
+                      🌐 Always Active
+                    </button>
+                  </div>
+                </div>
+
+                <div class="skills-banner-actions">
+                  <button class="btn btn-primary btn-sm" id="btn-create-skill" type="button">
+                    <span>✨ + Create Skill</span>
+                  </button>
+                  <input type="file" id="skill-import-input" accept=".md,.markdown,.json" class="file-input-hidden" />
+                  <button class="btn btn-secondary btn-sm" id="btn-import-skill" type="button" title="Import SKILL.md or JSON skill definition">
+                    <span>📥 Import SKILL.md</span>
+                  </button>
+                  <button class="btn btn-secondary btn-sm" id="btn-reset-skills" type="button" title="Reset all skills to built-in factory defaults">
+                    <span>🔄 Reset Defaults</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Interactive Live Filter Simulator -->
+            <div class="skills-tester-card">
+              <div class="skills-tester-header">
+                <span class="skills-tester-title">🎯 Live Skill Filter Tester</span>
+                <span class="skills-tester-sub">Type a prompt below to see which skills activate in real time:</span>
+              </div>
+              <div class="skills-tester-input-wrap">
+                <input type="text" id="skills-tester-input" class="custom-input skills-tester-input" placeholder="e.g., 'Rewrite this email to sound more natural' or 'Debug why this unit test failed'..." />
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-run-skill-test">⚡ Test Filter</button>
+              </div>
+              <div class="skills-tester-matches" id="skills-tester-matches">
+                <span class="skills-tester-hint">Type a prompt to test trigger detection...</span>
+              </div>
+            </div>
+
+            <!-- Filter & Search Toolbar -->
+            <div class="skills-toolbar">
+              <div class="skills-search-wrap">
+                <span class="skills-search-icon">🔍</span>
+                <input type="text" id="skills-search-input" class="custom-input skills-search-input" placeholder="Search skills by name, description, or trigger keywords..." />
+              </div>
+              <div class="skills-category-chips" id="skills-category-chips">
+                <button type="button" class="skills-chip active" data-category="all">All Skills (<span id="skills-cat-count-all">6</span>)</button>
+                <button type="button" class="skills-chip" data-category="writing_voice">✍️ Writing &amp; Voice</button>
+                <button type="button" class="skills-chip" data-category="engineering_discipline">🧪 Engineering</button>
+                <button type="button" class="skills-chip" data-category="architecture_planning">📐 Architecture</button>
+                <button type="button" class="skills-chip" data-category="quality_security">🛡️ Security &amp; QA</button>
+                <button type="button" class="skills-chip" data-category="reasoning_verification">🎯 Reasoning</button>
+                <button type="button" class="skills-chip" data-category="custom">📦 Custom</button>
+              </div>
+            </div>
+
+            <!-- Skills List Container -->
+            <div class="skills-list" id="skills-list-container">
+              <!-- Dynamically populated skill cards -->
+            </div>
+          </div>
+
+          <!-- ─── TAB 2: PLUGINS & EXTENSIONS (HOT PLUG & PLAY) ─── -->
+          <div class="settings-tab-pane" id="tab-settings-plugins">
+            <!-- Sleek Drag & Drop Package Installer Card -->
+            <div class="plugin-installer-card">
+              <div class="plugin-dropzone" id="plugin-dropzone">
+                <div class="plugin-dropzone-inner">
+                  <div class="plugin-dropzone-icon">📦</div>
+                  <div class="plugin-dropzone-text">
+                    <h4 class="dropzone-h4">Drag &amp; Drop <code>.zip</code> Plugin Package to Install</h4>
+                    <p class="dropzone-p">Instant hot plug-and-play installation for self-contained <code>.zip</code> plugin bundles.</p>
+                  </div>
+                </div>
+                <div class="plugin-dropzone-actions">
+                  <input type="file" id="plugin-file-input" accept=".zip,.aiplugin.zip,application/zip,application/x-zip-compressed" class="file-input-hidden" />
+                  <button class="btn btn-secondary btn-sm" id="btn-browse-plugin" type="button">📂 Browse .ZIP Package</button>
+                  <button class="btn btn-secondary btn-sm" id="btn-reload-plugins" type="button" title="Hot-reload all custom plugins from disk">🔄 Reload</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Active & Installed Plugins List -->
+            <div class="plugins-list" id="plugins-list">
+              <!-- Dynamically populated plugin cards -->
+            </div>
+          </div>
+
+          <!-- ─── TAB 3: SECURITY & PERMISSIONS (GOVERNANCE & APPROVALS) ─── -->
+          <div class="settings-tab-pane" id="tab-settings-security">
+            <!-- Autonomy Preset Selection Cards -->
+            <div class="security-section">
+              <div class="security-section-header">
+                <h4>🛡️ Global Autonomy &amp; Safety Level</h4>
+                <p>Control whether automated agent tasks require interactive user confirmation before taking actions on your system.</p>
+              </div>
+
+              <div class="security-preset-grid">
+                <!-- Strict Mode Card -->
+                <div class="security-preset-card" data-preset="strict" id="preset-card-strict">
+                  <div class="preset-card-head">
+                    <span class="preset-card-icon">🛡️</span>
+                    <div>
+                      <h4 class="preset-card-title">Strict Control</h4>
+                      <span class="preset-card-tag tag-strict">Paranoid</span>
+                    </div>
+                  </div>
+                  <p class="preset-card-desc">Asks for explicit confirmation before running any shell commands, Python scripts, file writes, or custom tools.</p>
+                  <div class="preset-card-footer">
+                    <span class="preset-status-indicator">Select Preset</span>
+                  </div>
+                </div>
+
+                <!-- Balanced Mode Card -->
+                <div class="security-preset-card active" data-preset="balanced" id="preset-card-balanced">
+                  <div class="preset-card-head">
+                    <span class="preset-card-icon">⚖️</span>
+                    <div>
+                      <h4 class="preset-card-title">Balanced (Standard)</h4>
+                      <span class="preset-card-tag tag-balanced">Recommended</span>
+                    </div>
+                  </div>
+                  <p class="preset-card-desc">Auto-executes safe queries &amp; memory lookups. Requires user confirmation for terminal commands, Python execution, and custom tools.</p>
+                  <div class="preset-card-footer">
+                    <span class="preset-status-indicator">Active Default</span>
+                  </div>
+                </div>
+
+                <!-- Autonomous Mode Card -->
+                <div class="security-preset-card" data-preset="autonomous" id="preset-card-autonomous">
+                  <div class="preset-card-head">
+                    <span class="preset-card-icon">⚡</span>
+                    <div>
+                      <h4 class="preset-card-title">Full Autonomy</h4>
+                      <span class="preset-card-tag tag-autonomous">Unattended</span>
+                    </div>
+                  </div>
+                  <p class="preset-card-desc">Enables autonomous multi-step reasoning and tool execution inside the sandbox without interrupting for approvals.</p>
+                  <div class="preset-card-footer">
+                    <span class="preset-status-indicator">Select Preset</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Granular Permissions Matrix -->
+            <div class="security-section">
+              <div class="security-section-header">
+                <h4>⚙️ Fine-Grained Capability Permissions</h4>
+                <p>Customize individual permission policies for specific capabilities and tools.</p>
+              </div>
+
+              <div class="security-matrix-card">
+                <table class="security-matrix-table">
+                  <thead>
+                    <tr>
+                      <th>Capability</th>
+                      <th>Target Operations</th>
+                      <th>Risk Level</th>
+                      <th>Permission Policy</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <!-- Shell Commands -->
+                    <tr>
+                      <td>
+                        <div class="cap-col-wrap">
+                          <span class="cap-icon">💻</span>
+                          <div>
+                            <strong>Terminal &amp; Shell</strong>
+                            <div class="cap-sub">Native system terminal commands</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td><code>execute_shell_command</code>, <code>execute_command</code></td>
+                      <td>
+                        <div class="risk-dots risk-high" title="High Risk (3/3)" aria-label="High Risk">
+                          <span class="risk-dot active"></span>
+                          <span class="risk-dot active"></span>
+                          <span class="risk-dot active"></span>
+                        </div>
+                      </td>
+                      <td>
+                        <select class="custom-select sec-perm-select" data-capability="shell" id="sec-perm-shell">
+                          <option value="ask">✋ Ask for Approval</option>
+                          <option value="allow">✅ Auto-Execute</option>
+                          <option value="deny">🚫 Block Action</option>
+                        </select>
+                      </td>
+                    </tr>
+
+                    <!-- Python Sandbox -->
+                    <tr>
+                      <td>
+                        <div class="cap-col-wrap">
+                          <span class="cap-icon">🐍</span>
+                          <div>
+                            <strong>Python Sandbox</strong>
+                            <div class="cap-sub">Code execution &amp; data computations</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td><code>run_sandboxed_script</code></td>
+                      <td>
+                        <div class="risk-dots risk-high" title="High Risk (3/3)" aria-label="High Risk">
+                          <span class="risk-dot active"></span>
+                          <span class="risk-dot active"></span>
+                          <span class="risk-dot active"></span>
+                        </div>
+                      </td>
+                      <td>
+                        <select class="custom-select sec-perm-select" data-capability="python" id="sec-perm-python">
+                          <option value="ask">✋ Ask for Approval</option>
+                          <option value="allow">✅ Auto-Execute</option>
+                          <option value="deny">🚫 Block Action</option>
+                        </select>
+                      </td>
+                    </tr>
+
+                    <!-- File Writes & Artifacts -->
+                    <!-- File & Artifact Writes -->
+                    <tr>
+                      <td>
+                        <div class="cap-col-wrap">
+                          <span class="cap-icon">📁</span>
+                          <div>
+                            <strong>File &amp; Artifact Writes</strong>
+                            <div class="cap-sub">Deliverable reports &amp; file generation</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td><code>save_artifact</code>, <code>write_file</code></td>
+                      <td>
+                        <div class="risk-dots risk-med" title="Medium Risk (2/3)" aria-label="Medium Risk">
+                          <span class="risk-dot active"></span>
+                          <span class="risk-dot active"></span>
+                          <span class="risk-dot"></span>
+                        </div>
+                      </td>
+                      <td>
+                        <select class="custom-select sec-perm-select" data-capability="file_write" id="sec-perm-file-write">
+                          <option value="allow">✅ Auto-Execute</option>
+                          <option value="ask">✋ Ask for Approval</option>
+                          <option value="deny">🚫 Block Action</option>
+                        </select>
+                      </td>
+                    </tr>
+
+                    <!-- Destructive File & Artifact Deletion (Guarded) -->
+                    <tr>
+                      <td>
+                        <div class="cap-col-wrap">
+                          <span class="cap-icon">🗑️</span>
+                          <div>
+                            <strong>Destructive File Deletion</strong>
+                            <div class="cap-sub">Delete artifacts or wipe sandbox workspace</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td><code>delete_artifact</code>, <code>clear_artifacts</code>, <code>clean_sandbox</code></td>
+                      <td>
+                        <div class="risk-dots risk-high" title="High Risk (3/3)" aria-label="High Risk">
+                          <span class="risk-dot active"></span>
+                          <span class="risk-dot active"></span>
+                          <span class="risk-dot active"></span>
+                        </div>
+                      </td>
+                      <td>
+                        <select class="custom-select sec-perm-select" data-capability="file_delete" id="sec-perm-file-delete">
+                          <option value="ask">✋ Ask for Approval</option>
+                          <option value="allow">✅ Auto-Execute</option>
+                          <option value="deny">🚫 Block Action</option>
+                        </select>
+                      </td>
+                    </tr>
+
+                    <!-- Web Search & Network -->
+                    <tr>
+                      <td>
+                        <div class="cap-col-wrap">
+                          <span class="cap-icon">🌐</span>
+                          <div>
+                            <strong>Web Search &amp; Network</strong>
+                            <div class="cap-sub">Online queries &amp; HTTP requests</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td><code>web_search</code>, <code>read_web_page</code></td>
+                      <td>
+                        <div class="risk-dots risk-low" title="Low Risk (1/3)" aria-label="Low Risk">
+                          <span class="risk-dot active"></span>
+                          <span class="risk-dot"></span>
+                          <span class="risk-dot"></span>
+                        </div>
+                      </td>
+                      <td>
+                        <select class="custom-select sec-perm-select" data-capability="network" id="sec-perm-network">
+                          <option value="allow">✅ Auto-Execute</option>
+                          <option value="ask">✋ Ask for Approval</option>
+                          <option value="deny">🚫 Block Action</option>
+                        </select>
+                      </td>
+                    </tr>
+
+                    <!-- Vector RAG & Documents -->
+                    <tr>
+                      <td>
+                        <div class="cap-col-wrap">
+                          <span class="cap-icon">📚</span>
+                          <div>
+                            <strong>Vector Memory &amp; RAG</strong>
+                            <div class="cap-sub">SQLite vector recall &amp; document search</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td><code>query_knowledge_base</code>, <code>list_documents</code></td>
+                      <td>
+                        <div class="risk-dots risk-low" title="Low Risk (1/3)" aria-label="Low Risk">
+                          <span class="risk-dot active"></span>
+                          <span class="risk-dot"></span>
+                          <span class="risk-dot"></span>
+                        </div>
+                      </td>
+                      <td>
+                        <select class="custom-select sec-perm-select" data-capability="rag" id="sec-perm-rag">
+                          <option value="allow">✅ Auto-Execute</option>
+                          <option value="ask">✋ Ask for Approval</option>
+                          <option value="deny">🚫 Block Action</option>
+                        </select>
+                      </td>
+                    </tr>
+
+                    <!-- Storage -->
+                    <tr>
+                      <td>
+                        <div class="cap-col-wrap">
+                          <span class="cap-icon">💾</span>
+                          <div>
+                            <strong>Plugin Storage</strong>
+                            <div class="cap-sub">Key-value state &amp; persistence</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td><code>ctx.storage.get / set</code></td>
+                      <td>
+                        <div class="risk-dots risk-low" title="Low Risk (1/3)" aria-label="Low Risk">
+                          <span class="risk-dot active"></span>
+                          <span class="risk-dot"></span>
+                          <span class="risk-dot"></span>
+                        </div>
+                      </td>
+                      <td>
+                        <select class="custom-select sec-perm-select" data-capability="storage" id="sec-perm-storage">
+                          <option value="allow">✅ Auto-Execute</option>
+                          <option value="ask">✋ Ask for Approval</option>
+                          <option value="deny">🚫 Block Action</option>
+                        </select>
+                      </td>
+                    </tr>
+
+                    <!-- Reasoning Scratchpad -->
+                    <tr>
+                      <td>
+                        <div class="cap-col-wrap">
+                          <span class="cap-icon">🧠</span>
+                          <div>
+                            <strong>Reasoning Scratchpad</strong>
+                            <div class="cap-sub">Step-by-step thinking &amp; plan tracking</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td><code>record_reasoning_step</code></td>
+                      <td>
+                        <div class="risk-dots risk-low" title="Low Risk (1/3)" aria-label="Low Risk">
+                          <span class="risk-dot active"></span>
+                          <span class="risk-dot"></span>
+                          <span class="risk-dot"></span>
+                        </div>
+                      </td>
+                      <td>
+                        <select class="custom-select sec-perm-select" data-capability="reasoning" id="sec-perm-reasoning">
+                          <option value="allow">✅ Auto-Execute</option>
+                          <option value="ask">✋ Ask for Approval</option>
+                          <option value="deny">🚫 Block Action</option>
+                        </select>
+                      </td>
+                    </tr>
+
+                    <!-- Custom Dynamic Plugins -->
+                    <tr>
+                      <td>
+                        <div class="cap-col-wrap">
+                          <span class="cap-icon">📦</span>
+                          <div>
+                            <strong>Custom Dynamic Plugins</strong>
+                            <div class="cap-sub">User-installed <code>.aiplugin.json</code> packages</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td>Any custom tool handlers</td>
+                      <td>
+                        <div class="risk-dots risk-med" title="Medium Risk (2/3)" aria-label="Medium Risk">
+                          <span class="risk-dot active"></span>
+                          <span class="risk-dot active"></span>
+                          <span class="risk-dot"></span>
+                        </div>
+                      </td>
+                      <td>
+                        <select class="custom-select sec-perm-select" data-capability="custom" id="sec-perm-custom">
+                          <option value="ask">✋ Ask for Approval</option>
+                          <option value="allow">✅ Auto-Execute</option>
+                          <option value="deny">🚫 Block Action</option>
+                        </select>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Session Whitelist Card with Expandable Detail View -->
+            <div class="security-section">
+              <div class="security-session-card" id="security-session-card">
+                <div class="session-card-header" id="session-card-header">
+                  <div class="session-card-left">
+                    <span class="session-card-icon">⚡</span>
+                    <div>
+                      <div class="session-card-title-row">
+                        <h4 class="session-card-title">Active Session Whitelist</h4>
+                        <span id="session-whitelist-count" class="whitelist-count-pill">0 tools active</span>
+                      </div>
+                      <p class="session-card-desc">Tools approved with <em>"Always allow for this session"</em> during active conversations.</p>
+                    </div>
+                  </div>
+                  <div class="session-card-right">
+                    <button type="button" class="btn btn-secondary btn-sm" id="btn-clear-whitelist" title="Clear all whitelisted tools across all sessions">🗑️ Clear All</button>
+                    <span class="session-card-toggle" id="session-card-toggle">▾ Details</span>
+                  </div>
+                </div>
+
+                <!-- Expanded List View of Sessions and Permitted Tools -->
+                <div class="session-whitelist-expanded-pane hidden" id="session-whitelist-expanded-pane">
+                  <div class="session-whitelist-list" id="session-whitelist-list">
+                    <!-- Dynamically populated per-session tool list -->
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Security Footer -->
+            <div class="settings-footer">
+              <div class="security-footer-left">
+                <button type="button" class="btn btn-secondary" id="btn-reset-security">🔄 Reset to Defaults</button>
+              </div>
+              <div class="security-footer-right">
+                <button type="button" class="btn btn-primary" id="btn-save-security">💾 Apply Security Policy</button>
+                <span id="security-feedback" class="settings-feedback"></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- ─── TAB 4: APP CONNECTORS & INTEGRATIONS ─── -->
+          <div class="settings-tab-pane" id="tab-settings-connectors">
+            <!-- Header bar with quick actions -->
+            <div class="connectors-header-bar">
+              <div class="connectors-header-info">
+                <h4 class="connectors-title">External App Bridges &amp; Integrations</h4>
+                <p class="connectors-desc">Connect desktop applications via modular connector packages (.zip).</p>
+              </div>
+              <div class="connectors-header-actions">
+                <input type="file" id="connector-package-file-input" accept=".zip" style="display: none;" />
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-import-connector-pkg" title="Install modular connector package (.zip)">📥 Install Connector (.zip)</button>
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-refresh-connectors">🔄 Refresh Status</button>
+                <button type="button" class="btn btn-primary btn-sm" id="btn-add-custom-connector">➕ Add Custom App</button>
+              </div>
+            </div>
+
+            <!-- Connectors Catalog Grid -->
+            <div class="connectors-grid" id="connectors-grid">
+              <!-- Dynamically populated connector cards -->
+            </div>
+          </div>
+
+          <!-- ─── TAB 5: SYSTEM CONFIGURATION (.ENV & CONFIG.YAML) ─── -->
+          <div class="settings-tab-pane" id="tab-settings-system-config">
+            <div class="system-config-container">
+              <div class="system-config-header">
+                <div>
+                  <h4 style="margin: 0 0 4px 0; font-size: 15px; color: #f4f4f5; display: flex; align-items: center; gap: 6px;">⚙️ System Configuration &amp; Secrets</h4>
+                  <p style="margin: 0; font-size: 12.5px; color: #a1a1aa;">View, edit, and hot-reload your engine knobs in <code>config.yaml</code> and private API keys in <code>.env</code>.</p>
+                </div>
+                <div class="system-config-actions-top">
+                  <button id="sysconfig-reveal-btn" class="btn btn-secondary btn-sm" title="Show file in Windows Explorer">
+                    <span>📁 Reveal in Folder</span>
+                  </button>
+                  <button id="sysconfig-open-native-btn" class="btn btn-secondary btn-sm" title="Open file in external system editor (VS Code, Notepad, etc.)">
+                    <span>📝 Open in OS Editor</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Pill Selector: config.yaml vs .env -->
+              <div class="sysconfig-file-selector">
+                <button class="sysconfig-pill active" id="pill-config-yaml" data-file="yaml">
+                  <span class="pill-icon">📄</span>
+                  <div class="pill-text-wrap">
+                    <span class="pill-title">config.yaml</span>
+                    <span class="pill-desc">Engine, Knobs &amp; RAG</span>
+                  </div>
+                </button>
+                <button class="sysconfig-pill" id="pill-env" data-file="env">
+                  <span class="pill-icon">🔑</span>
+                  <div class="pill-text-wrap">
+                    <span class="pill-title">.env</span>
+                    <span class="pill-desc">API Keys &amp; Secrets</span>
+                  </div>
+                </button>
+              </div>
+
+              <div class="sysconfig-path-banner">
+                <span class="sysconfig-path-label">RESOLVED PATH:</span>
+                <span id="sysconfig-active-path" class="sysconfig-path-text">Loading...</span>
+              </div>
+
+              <!-- Monospace Color-Coded Editor Canvas -->
+              <div class="sysconfig-editor-wrap">
+                <div class="sysconfig-gutter" id="sysconfig-gutter" aria-hidden="true">1</div>
+                <div class="sysconfig-canvas">
+                  <pre class="sysconfig-highlight-layer" aria-hidden="true"><code id="sysconfig-highlight-code" class="hljs"></code></pre>
+                  <textarea id="sysconfig-editor-textarea" class="sysconfig-editor" spellcheck="false" placeholder="Loading configuration..."></textarea>
+                </div>
+              </div>
+
+              <!-- Footer Actions -->
+              <div class="sysconfig-footer">
+                <div class="sysconfig-footer-left">
+                  <span id="sysconfig-status-badge" class="sysconfig-status-badge status-ready">Ready</span>
+                  <span class="sysconfig-hint">Edits take effect immediately upon saving.</span>
+                </div>
+                <div class="sysconfig-footer-right">
+                  <button id="sysconfig-reload-btn" class="btn btn-secondary btn-sm">
+                    <span>🔄 Discard &amp; Reload</span>
+                  </button>
+                  <button id="sysconfig-save-btn" class="btn btn-primary btn-sm">
+                    <span>💾 Save Changes</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       MODAL: CONNECTOR SETUP & BRIDGE COMPANION GUIDE
+       ═══════════════════════════════════════════════════════════════ -->
+  <div id="connector-setup-modal" class="settings-modal-overlay hidden">
+    <div class="connector-setup-card">
+      <div class="connector-setup-header">
+        <div class="connector-setup-title-wrap">
+          <span class="connector-setup-icon" id="setup-modal-icon">🎨</span>
+          <div>
+            <h3 class="connector-setup-title" id="setup-modal-title">Blender 3D Companion Bridge Setup</h3>
+            <p class="connector-setup-sub" id="setup-modal-sub">Step-by-step instructions to enable remote AI control in Blender.</p>
+          </div>
+        </div>
+        <button id="connector-setup-close" class="icon-btn" title="Close (Esc)">✕</button>
+      </div>
+      <div class="connector-setup-body" id="setup-modal-body">
+        <!-- Dynamically injected guide & copyable script -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       MODAL: ADD / EDIT CUSTOM APP CONNECTOR
+       ═══════════════════════════════════════════════════════════════ -->
+  <div id="custom-connector-modal" class="settings-modal-overlay hidden">
+    <div class="custom-connector-card">
+      <div class="custom-connector-header">
+        <div class="custom-connector-title-wrap">
+          <span class="custom-connector-icon">🔗</span>
+          <div>
+            <h3 class="custom-connector-title" id="custom-connector-modal-title">Add Custom App Connector</h3>
+            <p class="custom-connector-sub">Connect any local or cloud HTTP REST or WebSocket API as an AI Plate toolset.</p>
+          </div>
+        </div>
+        <button id="custom-connector-close" class="icon-btn" title="Close (Esc)">✕</button>
+      </div>
+      <div class="custom-connector-body">
+        <form id="custom-connector-form">
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="custom-conn-name">Application Name</label>
+              <input type="text" id="custom-conn-name" class="custom-input" placeholder="e.g. My Local App, Unreal Engine, Notion API" required />
+            </div>
+            <div class="form-group" style="max-width: 100px;">
+              <label for="custom-conn-icon">Emoji Icon</label>
+              <input type="text" id="custom-conn-icon" class="custom-input text-center" value="🔌" maxlength="4" />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="custom-conn-desc">Description</label>
+            <input type="text" id="custom-conn-desc" class="custom-input" placeholder="What this external app does..." />
+          </div>
+
+          <div class="form-row">
+            <div class="form-group" style="max-width: 140px;">
+              <label for="custom-conn-proto">Protocol</label>
+              <select id="custom-conn-proto" class="custom-select">
+                <option value="http">HTTP</option>
+                <option value="https">HTTPS</option>
+                <option value="ws">WebSocket (WS)</option>
+                <option value="wss">WebSocket (WSS)</option>
+              </select>
+            </div>
+            <div class="form-group flex-1">
+              <label for="custom-conn-host">Host / IP</label>
+              <input type="text" id="custom-conn-host" class="custom-input" value="localhost" placeholder="localhost or api.example.com" required />
+            </div>
+            <div class="form-group" style="max-width: 120px;">
+              <label for="custom-conn-port">Port</label>
+              <input type="number" id="custom-conn-port" class="custom-input" value="8080" placeholder="8080" />
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group" style="max-width: 160px;">
+              <label for="custom-conn-auth-type">Authentication</label>
+              <select id="custom-conn-auth-type" class="custom-select">
+                <option value="none">None</option>
+                <option value="bearer">Bearer Token</option>
+                <option value="apikey">X-API-Key</option>
+              </select>
+            </div>
+            <div class="form-group flex-1" id="custom-conn-token-group" style="display: none;">
+              <div class="conn-token-header">
+                <label for="custom-conn-auth-token">Auth Token / Secret</label>
+                <button type="button" class="btn-token-toggle-monkey" id="btn-custom-conn-token-toggle" title="Show token">🙈</button>
+              </div>
+              <input type="password" id="custom-conn-auth-token" class="custom-input" placeholder="Bearer token or API key..." />
+            </div>
+          </div>
+
+          <div class="custom-conn-footer">
+            <button type="button" class="btn btn-secondary" id="btn-cancel-custom-connector">Cancel</button>
+            <button type="button" class="btn btn-secondary" id="btn-test-custom-connector-form">⚡ Test Ping</button>
+            <button type="submit" class="btn btn-primary" id="btn-save-custom-connector">💾 Save Connector</button>
+          </div>
+          <div id="custom-conn-feedback" class="custom-conn-feedback"></div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       EXPANDED THINKING PROCESS & EXECUTION TRACE MODAL
+       ═══════════════════════════════════════════════════════════════ -->
+  <div id="thinking-detail-modal" class="settings-modal-overlay hidden">
+    <div class="thinking-detail-card">
+      <div class="thinking-detail-header">
+        <div class="thinking-detail-title-wrap">
+          <span class="thinking-detail-icon">🧠</span>
+          <div>
+            <h3 class="thinking-detail-title">Expanded Reasoning &amp; Execution Graph</h3>
+            <p class="thinking-detail-sub" id="thinking-detail-sub">Deep inspect model reasoning thoughts, step confidence, parameters, and tool traces.</p>
+          </div>
+        </div>
+        <div class="thinking-detail-header-actions">
+          <span id="thinking-detail-stats-pill" class="thinking-stats-pill">0 steps • 0.0s</span>
+          <button id="thinking-detail-close" class="icon-btn" title="Close (Esc)">✕</button>
+        </div>
+      </div>
+      <div class="thinking-detail-body" id="thinking-detail-body">
+        <!-- Rendered thinking steps timeline -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       SKILL CREATOR & EDITOR MODAL
+       ═══════════════════════════════════════════════════════════════ -->
+  <div id="modal-skill-editor" class="settings-modal-overlay hidden">
+    <div class="modal-card skill-editor-card">
+      <div class="modal-header">
+        <div class="modal-header-title-group">
+          <span class="modal-header-icon" id="skill-editor-modal-icon">✨</span>
+          <div class="modal-header-text">
+            <h3 class="modal-title" id="skill-editor-modal-title">Create Cognitive Skill</h3>
+            <p class="modal-subtitle">Define an LLM thinking directive script with trigger conditions.</p>
+          </div>
+        </div>
+        <button id="btn-close-skill-editor" class="icon-btn modal-close-btn" type="button" title="Close (Esc)">✕</button>
+      </div>
+
+      <form id="form-skill-editor" class="modal-form skill-editor-form">
+        <input type="hidden" id="skill-edit-id" />
+        
+        <!-- Row 1: Name, Category, Icon -->
+        <div class="skill-form-grid-top">
+          <div class="form-group form-group-name">
+            <label for="skill-edit-name">Skill Name <span class="required-star">*</span></label>
+            <input type="text" id="skill-edit-name" class="custom-input" placeholder="e.g. Concise Code Explainer" required />
+          </div>
+          <div class="form-group form-group-category">
+            <label for="skill-edit-category">Category</label>
+            <select id="skill-edit-category" class="custom-select">
+              <option value="writing_voice">✍️ Writing &amp; Voice</option>
+              <option value="engineering_discipline">🧪 Engineering Discipline</option>
+              <option value="architecture_planning">📐 Architecture &amp; Planning</option>
+              <option value="quality_security">🛡️ Quality &amp; Security</option>
+              <option value="reasoning_verification">🎯 Reasoning &amp; Verification</option>
+              <option value="custom" selected>📦 Custom Skill</option>
+            </select>
+          </div>
+          <div class="form-group form-group-icon">
+            <label for="skill-edit-icon">Icon</label>
+            <input type="text" id="skill-edit-icon" class="custom-input icon-input" value="🧠" maxlength="4" />
+          </div>
+        </div>
+
+        <!-- Row 2: Description -->
+        <div class="form-group">
+          <label for="skill-edit-description">Description <span class="required-star">*</span></label>
+          <input type="text" id="skill-edit-description" class="custom-input" placeholder="Short description of what this skill instructs the LLM to do..." required />
+        </div>
+
+        <!-- Row 3: Trigger Keywords (Full Width with clear separate hint) -->
+        <div class="form-group">
+          <div class="label-with-hint">
+            <label for="skill-edit-triggers">Trigger Keywords / Phrases (Comma-separated)</label>
+            <span class="label-hint">Matched in user prompts during Smart Filter mode</span>
+          </div>
+          <input type="text" id="skill-edit-triggers" class="custom-input" placeholder="e.g. explain, clarify, teach, simplify, walkthrough" />
+        </div>
+
+        <!-- Row 4: Always Active Option Box -->
+        <div class="skill-always-active-card">
+          <label class="custom-checkbox-label" for="skill-edit-always-active">
+            <input type="checkbox" id="skill-edit-always-active" class="custom-checkbox" />
+            <div class="always-active-text">
+              <span class="always-active-title">Always Active (Bypass Filter)</span>
+              <span class="always-active-desc">Inject this directive into every LLM turn regardless of prompt keywords</span>
+            </div>
+          </label>
+        </div>
+
+        <!-- Row 5: Thinking Script & Directives -->
+        <div class="form-group form-group-prompt">
+          <div class="prompt-header-row">
+            <label for="skill-edit-prompt">
+              Thinking Script &amp; Directives (Markdown) <span class="required-star">*</span>
+            </label>
+            <div class="skill-template-buttons">
+              <span class="template-label">Quick Templates:</span>
+              <button type="button" class="btn btn-secondary btn-xs btn-template-humanizer">✍️ Humanizer</button>
+              <button type="button" class="btn btn-secondary btn-xs btn-template-superpowers">🛠️ Superpowers TDD</button>
+            </div>
+          </div>
+          <textarea id="skill-edit-prompt" class="custom-textarea monospace-textarea" rows="8" placeholder="Enter explicit cognitive instructions for the LLM (e.g. rules, banned words, multi-pass checks, verification steps)..." required></textarea>
+        </div>
+
+        <!-- Footer -->
+        <div class="modal-form-footer">
+          <button type="button" class="btn btn-secondary" id="btn-cancel-skill-editor">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btn-save-skill-editor">💾 Save Skill Directive</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       MODAL: ADD PERSONAL FACT
+       ═══════════════════════════════════════════════════════════════ -->
+  <div id="modal-add-fact" class="settings-modal-overlay hidden">
+    <div class="modal-card fact-editor-card">
+      <div class="modal-header">
+        <div class="modal-header-left">
+          <span class="modal-header-icon">🪪</span>
+          <div>
+            <h3 class="modal-title">Record Permanent Personal Fact</h3>
+            <p class="modal-subtitle">Add a permanent fact to your sovereign Living Dossier.</p>
+          </div>
+        </div>
+        <button id="btn-close-fact-modal" class="icon-btn modal-close-btn" type="button" title="Close (Esc)">✕</button>
+      </div>
+
+      <form id="form-add-fact" class="modal-form">
+        <div class="form-row-2">
+          <div class="form-group">
+            <label for="fact-category">Category <span class="required-star">*</span></label>
+            <select id="fact-category" class="custom-select" required>
+              <option value="identity">👤 Identity &amp; Addressing</option>
+              <option value="project">🎯 Active Project &amp; Goals</option>
+              <option value="preference" selected>💡 Working Style &amp; Preference</option>
+              <option value="lifestyle">🏡 Household &amp; Lifestyle</option>
+              <option value="instruction">⚠️ Strict Instruction / Rule</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="fact-importance">Importance (1–10)</label>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <input type="range" id="fact-importance" min="1" max="10" value="8" style="flex: 1;" />
+              <span id="fact-importance-val" style="font-size: 13px; font-weight: 700; color: #e5c158; width: 36px;">8/10</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="fact-key">Fact Identifier / Key <span class="required-star">*</span></label>
+          <input type="text" id="fact-key" class="custom-input" placeholder="e.g. user_title, coding_style, primary_language" required />
+          <span class="input-hint">Used for automatic conflict resolution (updating old facts instead of duplicating).</span>
+        </div>
+
+        <div class="form-group">
+          <label for="fact-value">Fact Value / Description <span class="required-star">*</span></label>
+          <textarea id="fact-value" class="custom-textarea" rows="3" placeholder="e.g. User is producing an animated explainer video series using Blender." required></textarea>
+        </div>
+
+        <div class="modal-form-footer">
+          <button type="button" class="btn btn-secondary" id="btn-cancel-fact-modal">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btn-save-fact-submit">💾 Commit to Memory</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       MODAL: ONBOARDING EXPERIENCE (5-Step Sovereign Setup)
+       ═══════════════════════════════════════════════════════════════ -->
+  <div id="onboarding-modal" class="onboarding-modal-overlay hidden">
+    <!-- Confetti Canvas overlay for the finale -->
+    <canvas id="onboarding-confetti-canvas" class="onboarding-confetti-canvas"></canvas>
+
+    <div class="onboarding-card">
+      <!-- Ambient Glow Decorator -->
+      <div class="onboarding-glow-mesh"></div>
+
+      <!-- Top Header: Progress & Skip -->
+      <header class="onboarding-header">
+        <div class="onboarding-brand">
+          <span class="onboarding-brand-icon">🔮</span>
+          <span class="onboarding-brand-name">AI PLATE</span>
+        </div>
+
+        <!-- Step Progress Indicator -->
+        <div class="onboarding-steps-indicator">
+          <div class="onboarding-step-dot active" data-step="1" title="Welcome">1</div>
+          <div class="onboarding-step-line"></div>
+          <div class="onboarding-step-dot" data-step="2" title="Personal Sanctuary">2</div>
+          <div class="onboarding-step-line"></div>
+          <div class="onboarding-step-dot" data-step="3" title="AI Engine">3</div>
+          <div class="onboarding-step-line"></div>
+          <div class="onboarding-step-dot" data-step="4" title="Superpowers">4</div>
+          <div class="onboarding-step-line"></div>
+          <div class="onboarding-step-dot" data-step="5" title="Launch">5</div>
+        </div>
+
+        <button type="button" class="onboarding-skip-btn" id="btn-onboarding-skip" title="Skip Tour & Go Directly to Workspace">Skip Tour ✕</button>
+      </header>
+
+      <!-- Main Step Container -->
+      <div class="onboarding-content-viewport">
+        <!-- STEP 1: WELCOME & MISSION -->
+        <div class="onboarding-step-pane active" id="onboarding-step-1">
+          <div class="onboarding-welcome-hero">
+            <div class="onboarding-orbital-emblem">
+              <div class="emblem-core">🔮</div>
+              <div class="emblem-ring-outer"></div>
+              <div class="emblem-ring-inner"></div>
+            </div>
+            <h1 class="onboarding-hero-title">Welcome to <span class="text-gradient">AI Plate</span></h1>
+            <p class="onboarding-hero-subtitle">
+              Your sovereign, local-first AI workspace. Combining autonomous agent reasoning, deep personal memory, and real-time app connectors.
+            </p>
+
+            <div class="onboarding-pillars-grid">
+              <div class="onboarding-pillar-card">
+                <span class="pillar-icon">🛡️</span>
+                <h4>100% On-Device Sanctuary</h4>
+                <p>Zero data leakage. Conversations, facts, and embeddings stay strictly in your local SQLite store.</p>
+              </div>
+              <div class="onboarding-pillar-card">
+                <span class="pillar-icon">⚡</span>
+                <h4>Local &amp; Cloud Freedom</h4>
+                <p>Run offline via LM Studio &amp; Ollama, or connect to OpenRouter, Gemini &amp; OpenAI instantly.</p>
+              </div>
+              <div class="onboarding-pillar-card">
+                <span class="pillar-icon">🔌</span>
+                <h4>Modular App Connectors</h4>
+                <p>Command Blender 3D, OBS Studio, and ComfyUI through real-time WebSocket agent tool execution.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 2: PERSONAL MEMORY & BUTLER PERSONA -->
+        <div class="onboarding-step-pane" id="onboarding-step-2">
+          <div class="onboarding-step-header">
+            <span class="onboarding-step-badge">Step 2 of 5</span>
+            <h2 class="onboarding-step-title">Personalize Your Sovereign Sanctuary</h2>
+            <p class="onboarding-step-desc">
+              AI Plate constructs an evolving <strong>Living Dossier</strong> (<code>USER_PROFILE.md</code>). Tell your assistant how to address you and conduct conversations.
+            </p>
+          </div>
+
+          <div class="onboarding-form-group">
+            <label for="onboarding-user-name">What should AI Plate call you?</label>
+            <input type="text" id="onboarding-user-name" class="onboarding-custom-input" placeholder="e.g. Commander, Alex, Dr. Sterling, Sir..." />
+            <span class="onboarding-input-hint">Your assistant will immediately use this title across all reasoning threads.</span>
+          </div>
+
+          <label class="onboarding-label-caption">Select Butler Demeanor &amp; Tone:</label>
+          <div class="onboarding-persona-grid" id="onboarding-persona-grid">
+            <div class="onboarding-persona-card active" data-tone="butler">
+              <div class="persona-card-header">
+                <span class="persona-icon">🎩</span>
+                <span class="persona-tag">Recommended</span>
+              </div>
+              <h4>Courteous Genius Butler</h4>
+              <p>Warm, poised, deferential, anticipatory, and rigorously structured. Jarvis-like poise.</p>
+            </div>
+
+            <div class="onboarding-persona-card" data-tone="concise">
+              <div class="persona-card-header">
+                <span class="persona-icon">⚡</span>
+                <span class="persona-tag">High Speed</span>
+              </div>
+              <h4>Executive Brevity</h4>
+              <p>Direct code solutions, compact bullet tables, zero preamble, and maximum signal-to-noise ratio.</p>
+            </div>
+
+            <div class="onboarding-persona-card" data-tone="friendly">
+              <div class="persona-card-header">
+                <span class="persona-icon">🤝</span>
+                <span class="persona-tag">Collaborative</span>
+              </div>
+              <h4>Warm Colleague</h4>
+              <p>Conversational, encouraging, highly collaborative, and curious. Ideal for creative brainstorming.</p>
+            </div>
+
+            <div class="onboarding-persona-card" data-tone="academic">
+              <div class="persona-card-header">
+                <span class="persona-icon">🔬</span>
+                <span class="persona-tag">In-Depth</span>
+              </div>
+              <h4>Academic &amp; Rigorous</h4>
+              <p>First-principles derivations, deep analytical proofs, and formal scientific clarity.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 3: CHOOSE AI ENGINE -->
+        <div class="onboarding-step-pane" id="onboarding-step-3">
+          <div class="onboarding-step-header">
+            <span class="onboarding-step-badge">Step 3 of 5</span>
+            <h2 class="onboarding-step-title">Select Your Intelligence Engine</h2>
+            <p class="onboarding-step-desc">
+              Choose your primary inference provider. You can switch or mix local and cloud providers at any time in Settings.
+            </p>
+          </div>
+
+          <div class="onboarding-engine-grid" id="onboarding-engine-grid">
+            <div class="onboarding-engine-card" data-provider="lmstudio">
+              <div class="engine-badge-row">
+                <span class="engine-icon">💻</span>
+                <span class="engine-pill local-pill">100% Offline Local</span>
+              </div>
+              <h4>LM Studio</h4>
+              <p class="engine-desc">Local inference on Port 1234. Zero cloud data transmission. Infinite free tokens with loaded models.</p>
+              <div class="engine-foot">Default: <code>local-model</code></div>
+            </div>
+
+            <div class="onboarding-engine-card" data-provider="ollama">
+              <div class="engine-badge-row">
+                <span class="engine-icon">🦙</span>
+                <span class="engine-pill local-pill">Local Daemon</span>
+              </div>
+              <h4>Ollama</h4>
+              <p class="engine-desc">Self-hosted local open-source models (Llama 3.3, DeepSeek R1, Qwen 2.5 Coder) via Port 11434.</p>
+              <div class="engine-foot">Default: <code>llama3.3</code></div>
+            </div>
+
+            <div class="onboarding-engine-card active" data-provider="openrouter">
+              <div class="engine-badge-row">
+                <span class="engine-icon">🌐</span>
+                <span class="engine-pill cloud-pill">Multi-Model Cloud</span>
+              </div>
+              <h4>OpenRouter</h4>
+              <p class="engine-desc">Access to Liquid LFM 2.5 Free, Claude 3.7 Sonnet, DeepSeek R1, GPT-4o, and Gemini under one API key.</p>
+              <div class="engine-foot">Default: <code>liquid/lfm-2.5-embedding-350m:free</code></div>
+            </div>
+
+            <div class="onboarding-engine-card" data-provider="gemini">
+              <div class="engine-badge-row">
+                <span class="engine-icon">✨</span>
+                <span class="engine-pill cloud-pill">Fast &amp; Deep</span>
+              </div>
+              <h4>Google Gemini</h4>
+              <p class="engine-desc">Ultra-long context windows, deep reasoning via Flash Thinking Exp, and built-in vision intelligence.</p>
+              <div class="engine-foot">Default: <code>gemini-2.5-flash</code></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 4: COGNITIVE DIRECTIVES & SUPERPOWERS -->
+        <div class="onboarding-step-pane" id="onboarding-step-4">
+          <div class="onboarding-step-header">
+            <span class="onboarding-step-badge">Step 4 of 5</span>
+            <h2 class="onboarding-step-title">Cognitive Directives &amp; Superpowers</h2>
+            <p class="onboarding-step-desc">
+              Modular reasoning scripts shape how the LLM thinks, verifies assertions, and formulates output before speaking.
+            </p>
+          </div>
+
+          <div class="onboarding-features-list">
+            <div class="onboarding-feature-item">
+              <div class="feature-icon-wrap">⚡</div>
+              <div class="feature-info">
+                <h4>Smart Intent Filter</h4>
+                <p>Dynamically inspects conversation prompts and injects targeted cognitive skills (TDD, Debugging, Writing) automatically.</p>
+              </div>
+              <div class="feature-check">✓ Active</div>
+            </div>
+
+            <div class="onboarding-feature-item">
+              <div class="feature-icon-wrap">✍️</div>
+              <div class="feature-info">
+                <h4>Humanizer Directives</h4>
+                <p>Removes artificial AI cadence, sycophancy, buzzwords, and corporate boilerplate for authentic prose.</p>
+              </div>
+              <div class="feature-check">✓ Active</div>
+            </div>
+
+            <div class="onboarding-feature-item">
+              <div class="feature-icon-wrap">🧪</div>
+              <div class="feature-info">
+                <h4>Superpowers Verification &amp; TDD</h4>
+                <p>Compels the agent to formulate hypotheses, run sanity tests, and verify code execution before declaring victory.</p>
+              </div>
+              <div class="feature-check">✓ Active</div>
+            </div>
+
+            <div class="onboarding-feature-item">
+              <div class="feature-icon-wrap">🛡️</div>
+              <div class="feature-info">
+                <h4>Interactive Security Boundaries</h4>
+                <p>Dangerous system actions (file deletions, system commands) require explicit one-click user token approval.</p>
+              </div>
+              <div class="feature-check">✓ Active</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 5: CONNECTORS & BLAST OFF -->
+        <div class="onboarding-step-pane" id="onboarding-step-5">
+          <div class="onboarding-launch-hero">
+            <div class="onboarding-launch-icon">🚀</div>
+            <h2 class="onboarding-step-title">Your Sovereign Studio is Ready</h2>
+            <p class="onboarding-step-desc">
+              Specialized companion tools connected and ready to supercharge your creations:
+            </p>
+
+            <div class="onboarding-connectors-preview">
+              <div class="connector-preview-card">
+                <span class="conn-icon">🎨</span>
+                <strong>Blender 3D</strong>
+                <span>Generate meshes &amp; scene lighting via Python WebSocket</span>
+              </div>
+              <div class="connector-preview-card">
+                <span class="conn-icon">🎥</span>
+                <strong>OBS Studio</strong>
+                <span>Direct stream control, scene transitions, and recording</span>
+              </div>
+              <div class="connector-preview-card">
+                <span class="conn-icon">📚</span>
+                <strong>SQLite RAG</strong>
+                <span>Instant vector search across local PDFs &amp; code files</span>
+              </div>
+              <div class="connector-preview-card">
+                <span class="conn-icon">🗣️</span>
+                <strong>Kokoro TTS</strong>
+                <span>On-device 82M neural voice synthesis</span>
+              </div>
+            </div>
+
+            <button type="button" class="btn-onboarding-launch" id="btn-onboarding-launch">
+              <span>🚀 Launch AI Plate Sanctuary</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom Footer Navigation -->
+      <footer class="onboarding-footer">
+        <button type="button" class="btn btn-secondary" id="btn-onboarding-prev" style="visibility: hidden;">
+          ← Back
+        </button>
+
+        <div class="onboarding-step-pills">
+          <span class="step-pill active"></span>
+          <span class="step-pill"></span>
+          <span class="step-pill"></span>
+          <span class="step-pill"></span>
+          <span class="step-pill"></span>
+        </div>
+
+        <button type="button" class="btn btn-primary" id="btn-onboarding-next">
+          Continue →
+        </button>
+      </footer>
+    </div>
+  </div>
+
+  <script src="i18n.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

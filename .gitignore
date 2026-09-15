@@ -1,0 +1,77 @@
+# ─── Environment & Secrets ───────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+*.env
+*.pem
+*.key
+
+# ─── Node.js & Dependencies ──────────────────────────────────────────
+node_modules/
+dist/
+release/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# ─── SQLite Databases & Vector Storage ───────────────────────────────
+*.db
+*.db-shm
+*.db-wal
+agent_data.db*
+USER_PROFILE.md
+package/
+
+# ─── Sandboxed Execution & Temporary Files ───────────────────────────
+.sandbox/
+sandbox/
+*.tmp
+*.log
+
+# ─── Python Virtual Environments & Cache ─────────────────────────────
+runtime/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ai_plate_venv/
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache/
+
+# ─── Generated Plot Images & Artifacts ───────────────────────────────
+artifacts/
+correlation_graph.png
+correlation_heatmap.png
+*.png
+*.jpg
+*.jpeg
+*.svg
+
+# Whitelist UI, branding, and build assets
+!ui/assets/*.png
+!ui/assets/*.svg
+!ui/assets/*.ico
+!build/*.png
+!build/*.ico
+*.old.*
+
+# ─── Operating System & IDE Files ───────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.suo
+*.user
+*.swp
+
+docs/help.txt
+landing_page/
+landing-page/
