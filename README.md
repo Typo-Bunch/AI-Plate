@@ -11,6 +11,30 @@
 [![SQLite](https://img.shields.io/badge/SQLite-WAL%20Vector%20BLOBs-003B57.svg?logo=sqlite)](https://www.sqlite.org/)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/)
 
+[Visit the AI Plate website](https://ai-plate.typobunch.com/) · [Download the Windows release](https://github.com/Typo-Bunch/AI-Plate/releases/tag/v1.0.0-rc.1)
+
+## Install on Windows
+
+Install the Windows x64 desktop app with one command. No Git, Node.js, or source build is required.
+
+**PowerShell:**
+
+```powershell
+irm https://ai-plate.typobunch.com/install.ps1 | iex
+```
+
+**Git Bash on Windows:**
+
+```bash
+curl -fsSL https://ai-plate.typobunch.com/install.sh | bash
+```
+
+Both commands download the pinned `v1.0.0-rc.1` installer from GitHub Releases, verify its SHA-256 checksum, and open the setup wizard. Follow the wizard, launch AI Plate, and configure your AI provider in Settings.
+
+These scripts support Windows x64 only; macOS, Linux, and WSL are not supported. They install the desktop app, not a separate CLI application.
+
+You can inspect the [PowerShell script](https://ai-plate.typobunch.com/install.ps1) or [Bash script](https://ai-plate.typobunch.com/install.sh) before running it, or download the `.exe` directly from the [release page](https://github.com/Typo-Bunch/AI-Plate/releases/tag/v1.0.0-rc.1).
+
 ---
 
 ## 🌟 Manifesto: Why AI Plate?
