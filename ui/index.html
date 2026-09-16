@@ -2003,11 +2003,11 @@
         <div class="onboarding-steps-indicator">
           <div class="onboarding-step-dot active" data-step="1" title="Welcome">1</div>
           <div class="onboarding-step-line"></div>
-          <div class="onboarding-step-dot" data-step="2" title="Personal Sanctuary">2</div>
+          <div class="onboarding-step-dot" data-step="2" title="Personalize">2</div>
           <div class="onboarding-step-line"></div>
           <div class="onboarding-step-dot" data-step="3" title="AI Engine">3</div>
           <div class="onboarding-step-line"></div>
-          <div class="onboarding-step-dot" data-step="4" title="Superpowers">4</div>
+          <div class="onboarding-step-dot" data-step="4" title="Chat Modes">4</div>
           <div class="onboarding-step-line"></div>
           <div class="onboarding-step-dot" data-step="5" title="Launch">5</div>
         </div>
@@ -2027,24 +2027,24 @@
             </div>
             <h1 class="onboarding-hero-title">Welcome to <span class="text-gradient">AI Plate</span></h1>
             <p class="onboarding-hero-subtitle">
-              Your sovereign, local-first AI workspace. Combining autonomous agent reasoning, deep personal memory, and real-time app connectors.
+              Your workspace for conversation, research, and coding. Choose an AI provider, personalize your assistant, and explore tools for everyday work.
             </p>
 
             <div class="onboarding-pillars-grid">
               <div class="onboarding-pillar-card">
                 <span class="pillar-icon">🛡️</span>
-                <h4>100% On-Device Sanctuary</h4>
-                <p>Zero data leakage. Conversations, facts, and embeddings stay strictly in your local SQLite store.</p>
+                <h4>Local Conversation Storage</h4>
+                <p>History and saved memory are stored locally. Cloud providers and connected services receive the data needed to handle your requests.</p>
               </div>
               <div class="onboarding-pillar-card">
                 <span class="pillar-icon">⚡</span>
                 <h4>Local &amp; Cloud Freedom</h4>
-                <p>Run offline via LM Studio &amp; Ollama, or connect to OpenRouter, Gemini &amp; OpenAI instantly.</p>
+                <p>Use a running local model through LM Studio or Ollama, or configure an API key for a cloud provider.</p>
               </div>
               <div class="onboarding-pillar-card">
                 <span class="pillar-icon">🔌</span>
                 <h4>Modular App Connectors</h4>
-                <p>Command Blender 3D, OBS Studio, and ComfyUI through real-time WebSocket agent tool execution.</p>
+                <p>Connect supported apps such as Blender, OBS Studio, and ComfyUI after configuring their integrations.</p>
               </div>
             </div>
           </div>
@@ -2054,16 +2054,16 @@
         <div class="onboarding-step-pane" id="onboarding-step-2">
           <div class="onboarding-step-header">
             <span class="onboarding-step-badge">Step 2 of 5</span>
-            <h2 class="onboarding-step-title">Personalize Your Sovereign Sanctuary</h2>
+            <h2 class="onboarding-step-title">Make AI Plate Yours</h2>
             <p class="onboarding-step-desc">
-              AI Plate constructs an evolving <strong>Living Dossier</strong> (<code>USER_PROFILE.md</code>). Tell your assistant how to address you and conduct conversations.
+              Choose what your assistant calls you and how it responds. You can review saved facts and update your preferences in Settings.
             </p>
           </div>
 
           <div class="onboarding-form-group">
             <label for="onboarding-user-name">What should AI Plate call you?</label>
             <input type="text" id="onboarding-user-name" class="onboarding-custom-input" placeholder="e.g. Commander, Alex, Dr. Sterling, Sir..." />
-            <span class="onboarding-input-hint">Your assistant will immediately use this title across all reasoning threads.</span>
+            <span class="onboarding-input-hint">Optional. Your name and response style are saved when you launch the workspace.</span>
           </div>
 
           <label class="onboarding-label-caption">Select Butler Demeanor &amp; Tone:</label>
@@ -2110,9 +2110,9 @@
         <div class="onboarding-step-pane" id="onboarding-step-3">
           <div class="onboarding-step-header">
             <span class="onboarding-step-badge">Step 3 of 5</span>
-            <h2 class="onboarding-step-title">Select Your Intelligence Engine</h2>
+            <h2 class="onboarding-step-title">Choose Your AI Provider</h2>
             <p class="onboarding-step-desc">
-              Choose your primary inference provider. You can switch or mix local and cloud providers at any time in Settings.
+              Choose a provider for chat. Cloud providers need an API key; local providers need a running model server. Configure credentials and models in Settings. Embeddings are configured separately.
             </p>
           </div>
 
@@ -2120,11 +2120,11 @@
             <div class="onboarding-engine-card" data-provider="lmstudio">
               <div class="engine-badge-row">
                 <span class="engine-icon">💻</span>
-                <span class="engine-pill local-pill">100% Offline Local</span>
+                <span class="engine-pill local-pill">Local Server</span>
               </div>
               <h4>LM Studio</h4>
-              <p class="engine-desc">Local inference on Port 1234. Zero cloud data transmission. Infinite free tokens with loaded models.</p>
-              <div class="engine-foot">Default: <code>local-model</code></div>
+              <p class="engine-desc">Load a model in LM Studio and start its local server before chatting.</p>
+              <div class="engine-foot">Setup: running server and loaded model</div>
             </div>
 
             <div class="onboarding-engine-card" data-provider="ollama">
@@ -2133,8 +2133,8 @@
                 <span class="engine-pill local-pill">Local Daemon</span>
               </div>
               <h4>Ollama</h4>
-              <p class="engine-desc">Self-hosted local open-source models (Llama 3.3, DeepSeek R1, Qwen 2.5 Coder) via Port 11434.</p>
-              <div class="engine-foot">Default: <code>llama3.3</code></div>
+              <p class="engine-desc">Run Ollama locally and download a chat model. Select that installed model in Settings.</p>
+              <div class="engine-foot">Setup: running Ollama and downloaded model</div>
             </div>
 
             <div class="onboarding-engine-card active" data-provider="openrouter">
@@ -2143,8 +2143,8 @@
                 <span class="engine-pill cloud-pill">Multi-Model Cloud</span>
               </div>
               <h4>OpenRouter</h4>
-              <p class="engine-desc">Access to Liquid LFM 2.5 Free, Claude 3.7 Sonnet, DeepSeek R1, GPT-4o, and Gemini under one API key.</p>
-              <div class="engine-foot">Default: <code>liquid/lfm-2.5-embedding-350m:free</code></div>
+              <p class="engine-desc">Use one API key to access a choice of cloud chat models. Select your preferred chat model in Settings.</p>
+              <div class="engine-foot">Setup: OpenRouter API key</div>
             </div>
 
             <div class="onboarding-engine-card" data-provider="gemini">
@@ -2153,8 +2153,8 @@
                 <span class="engine-pill cloud-pill">Fast &amp; Deep</span>
               </div>
               <h4>Google Gemini</h4>
-              <p class="engine-desc">Ultra-long context windows, deep reasoning via Flash Thinking Exp, and built-in vision intelligence.</p>
-              <div class="engine-foot">Default: <code>gemini-2.5-flash</code></div>
+              <p class="engine-desc">Connect your Google API key and select a Gemini model in Settings.</p>
+              <div class="engine-foot">Setup: Google API key</div>
             </div>
           </div>
         </div>
@@ -2163,9 +2163,9 @@
         <div class="onboarding-step-pane" id="onboarding-step-4">
           <div class="onboarding-step-header">
             <span class="onboarding-step-badge">Step 4 of 5</span>
-            <h2 class="onboarding-step-title">Cognitive Directives &amp; Superpowers</h2>
+            <h2 class="onboarding-step-title">Choose How You Work</h2>
             <p class="onboarding-step-desc">
-              Modular reasoning scripts shape how the LLM thinks, verifies assertions, and formulates output before speaking.
+              Choose Normal, Plan, or Code beside the chat input. Each conversation remembers its mode; thinking level is a separate setting.
             </p>
           </div>
 
@@ -2173,37 +2173,37 @@
             <div class="onboarding-feature-item">
               <div class="feature-icon-wrap">⚡</div>
               <div class="feature-info">
-                <h4>Smart Intent Filter</h4>
-                <p>Dynamically inspects conversation prompts and injects targeted cognitive skills (TDD, Debugging, Writing) automatically.</p>
+                <h4>Normal — Everyday Help</h4>
+                <p>Ask questions, discuss ideas, search the web, and retrieve knowledge using the tools you have configured.</p>
               </div>
-              <div class="feature-check">✓ Active</div>
+              <div class="feature-check">Available</div>
             </div>
 
             <div class="onboarding-feature-item">
               <div class="feature-icon-wrap">✍️</div>
               <div class="feature-info">
-                <h4>Humanizer Directives</h4>
-                <p>Removes artificial AI cadence, sycophancy, buzzwords, and corporate boilerplate for authentic prose.</p>
+                <h4>Plan — Research Before Changes</h4>
+                <p>Read available files and research an implementation plan. This mode blocks command execution and file changes.</p>
               </div>
-              <div class="feature-check">✓ Active</div>
+              <div class="feature-check">Available</div>
             </div>
 
             <div class="onboarding-feature-item">
               <div class="feature-icon-wrap">🧪</div>
               <div class="feature-info">
-                <h4>Superpowers Verification &amp; TDD</h4>
-                <p>Compels the agent to formulate hypotheses, run sanity tests, and verify code execution before declaring victory.</p>
+                <h4>Code — Implement and Verify</h4>
+                <p>Make file changes and run checks with enabled tools. Use Implement this plan on a plan response to continue in Code mode.</p>
               </div>
-              <div class="feature-check">✓ Active</div>
+              <div class="feature-check">Available</div>
             </div>
 
             <div class="onboarding-feature-item">
               <div class="feature-icon-wrap">🛡️</div>
               <div class="feature-info">
-                <h4>Interactive Security Boundaries</h4>
-                <p>Dangerous system actions (file deletions, system commands) require explicit one-click user token approval.</p>
+                <h4>Skills &amp; Tool Controls</h4>
+                <p>Manage skills, connectors, and tool permissions in Settings. Available actions depend on your configuration and the selected chat mode.</p>
               </div>
-              <div class="feature-check">✓ Active</div>
+              <div class="feature-check">Available</div>
             </div>
           </div>
         </div>
@@ -2212,36 +2212,36 @@
         <div class="onboarding-step-pane" id="onboarding-step-5">
           <div class="onboarding-launch-hero">
             <div class="onboarding-launch-icon">🚀</div>
-            <h2 class="onboarding-step-title">Your Sovereign Studio is Ready</h2>
+            <h2 class="onboarding-step-title">Start Your First Conversation</h2>
             <p class="onboarding-step-desc">
-              Specialized companion tools connected and ready to supercharge your creations:
+              Launch to save your preferences and open chat. Configure your provider before sending a message. These optional features need their own setup:
             </p>
 
             <div class="onboarding-connectors-preview">
               <div class="connector-preview-card">
                 <span class="conn-icon">🎨</span>
                 <strong>Blender 3D</strong>
-                <span>Generate meshes &amp; scene lighting via Python WebSocket</span>
+                <span>Configure the Blender connector to work with scenes and objects</span>
               </div>
               <div class="connector-preview-card">
                 <span class="conn-icon">🎥</span>
                 <strong>OBS Studio</strong>
-                <span>Direct stream control, scene transitions, and recording</span>
+                <span>Connect OBS to control scenes and recording</span>
               </div>
               <div class="connector-preview-card">
                 <span class="conn-icon">📚</span>
-                <strong>SQLite RAG</strong>
-                <span>Instant vector search across local PDFs &amp; code files</span>
+                <strong>Document Knowledge</strong>
+                <span>Import documents and configure embeddings to search their content</span>
               </div>
               <div class="connector-preview-card">
                 <span class="conn-icon">🗣️</span>
                 <strong>Kokoro TTS</strong>
-                <span>On-device 82M neural voice synthesis</span>
+                <span>Set up local voice components to enable spoken responses</span>
               </div>
             </div>
 
             <button type="button" class="btn-onboarding-launch" id="btn-onboarding-launch">
-              <span>🚀 Launch AI Plate Sanctuary</span>
+              <span>🚀 Open AI Plate</span>
             </button>
           </div>
         </div>
