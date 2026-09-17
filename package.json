@@ -1,7 +1,7 @@
 {
   "name": "ai_plate",
   "productName": "AI Plate",
-  "version": "1.0.0-rc.1",
+  "version": "1.0.0-rc.2",
   "description": "AI Plate — Open Power: Universal AI Agent Harness with Multi-Provider Support and Sandboxed Execution",
   "author": "AI Plate Team",
   "license": "MIT",
