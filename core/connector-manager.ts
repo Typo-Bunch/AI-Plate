@@ -567,8 +567,24 @@ export class ConnectorManager extends EventEmitter {
 
       const m = validation.manifest;
       const targetDir = join(INSTALLED_CONNECTORS_DIR, m.id);
+
+      // Stop any existing companion process for this connector before modifying files
+      try {
+        await this.stopCompanion(m.id);
+      } catch {}
+
       if (existsSync(targetDir)) {
-        rmSync(targetDir, { recursive: true, force: true });
+        try {
+          rmSync(targetDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+        } catch {
+          // If Windows lock prevents immediate directory deletion, wait briefly and retry
+          await new Promise((resolve) => setTimeout(resolve, 300));
+          try {
+            rmSync(targetDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 150 });
+          } catch {
+            // Non-fatal: existing files will be overwritten in-place by zip.extractAllTo
+          }
+        }
       }
       mkdirSync(targetDir, { recursive: true });
 
@@ -1114,7 +1130,7 @@ export class ConnectorManager extends EventEmitter {
     try {
       if (process.platform === "win32" && pid) {
         try {
-          exec(`taskkill /F /T /PID ${pid}`, () => {});
+          execSync(`taskkill /F /T /PID ${pid}`, { stdio: "ignore" });
         } catch {}
       }
       entry.process.kill("SIGTERM");
