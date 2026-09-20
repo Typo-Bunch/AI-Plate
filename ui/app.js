@@ -551,14 +551,14 @@ const chatModeSelect = document.getElementById("chat-mode");
 const sessionModes = new Map();
 const dirtySessionModes = new Set();
 const modeDescriptions = {
-  normal: "General help, search, and knowledge retrieval",
-  plan: "Inspect files and create a plan without making changes",
-  code: "Implement changes and run verification with security checks",
+  code: "⚡ Agent (Default): Unified assistant — answers questions directly and uses tools for tasks",
+  plan: "📋 Plan: Inspect files and create a plan without executing changes",
+  normal: "💬 Chat Only: Conversational help without tool execution",
 };
 function syncChatModeSelector() {
-  const mode = sessionModes.get(currentSessionId) || "normal";
+  const mode = sessionModes.get(currentSessionId) || "code";
   chatModeSelect.value = mode;
-  chatModeSelect.title = modeDescriptions[mode] + ". Changes apply to the next message.";
+  chatModeSelect.title = (modeDescriptions[mode] || modeDescriptions.code) + ". Changes apply to the next message.";
 }
 async function saveChatMode(sessionId, mode) {
   sessionModes.set(sessionId, mode);
@@ -10201,6 +10201,28 @@ async function loadArtifacts() {
       return;
     }
 
+    // Sort files based on dropdown selection
+    const sortSelect = document.getElementById("artifacts-sort");
+    const sortMode = sortSelect ? sortSelect.value : "date-desc";
+    files.sort((a, b) => {
+      switch (sortMode) {
+        case "date-asc":
+          return new Date(a.modifiedAt || 0).getTime() - new Date(b.modifiedAt || 0).getTime();
+        case "date-desc":
+          return new Date(b.modifiedAt || 0).getTime() - new Date(a.modifiedAt || 0).getTime();
+        case "name-asc":
+          return (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" });
+        case "name-desc":
+          return (b.name || "").localeCompare(a.name || "", undefined, { sensitivity: "base" });
+        case "size-desc":
+          return (b.sizeBytes || 0) - (a.sizeBytes || 0);
+        case "size-asc":
+          return (a.sizeBytes || 0) - (b.sizeBytes || 0);
+        default:
+          return new Date(b.modifiedAt || 0).getTime() - new Date(a.modifiedAt || 0).getTime();
+      }
+    });
+
     artifactsGrid.innerHTML = files
       .map((file) => {
         const fileUrl = `/api/artifacts/file?name=${encodeURIComponent(file.name)}`;
@@ -10273,6 +10295,12 @@ async function loadArtifacts() {
 
 if (btnRefreshArtifacts) {
   btnRefreshArtifacts.addEventListener("click", loadArtifacts);
+}
+
+// Re-sort artifacts when dropdown selection changes
+const artifactsSortSelect = document.getElementById("artifacts-sort");
+if (artifactsSortSelect) {
+  artifactsSortSelect.addEventListener("change", loadArtifacts);
 }
 
 window.viewArtifactCode = async function (encodedName) {
@@ -11096,7 +11124,7 @@ async function sendMessage(text) {
           const implementButton = document.createElement("button");
           implementButton.type = "button";
           implementButton.className = "btn btn-secondary implement-plan-btn";
-          implementButton.textContent = "Implement this plan";
+          implementButton.textContent = "⚡ Implement with Agent";
           implementButton.addEventListener("click", async () => {
             if (runningSessions.has(thisSessionId)) return;
             if (currentSessionId !== thisSessionId) await switchSession(thisSessionId);

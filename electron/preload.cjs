@@ -135,20 +135,38 @@ const api = {
   showItemInFolder: (targetPath) => ipcRenderer.invoke("system-config:open-external", { fileType: "yaml", action: "folder", targetPath }),
   selectFile: (options) => ipcRenderer.invoke("dialog:select-file", options),
 
-  // Native OS Clipboard (Zero browser permissions failure)
+  // Native OS Clipboard with navigator fallback
   clipboard: {
     writeText: (text) => {
       try {
-        clipboard.writeText(String(text || ""));
-        return true;
+        const str = String(text || "");
+        const cb = clipboard || (typeof require === "function" ? require("electron").clipboard : null);
+        if (cb && typeof cb.writeText === "function") {
+          cb.writeText(str);
+          return true;
+        }
+        if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(str);
+          return true;
+        }
+        return false;
       } catch (err) {
-        console.error("Clipboard writeText failed:", err);
+        try {
+          if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(String(text || ""));
+            return true;
+          }
+        } catch {}
         return false;
       }
     },
     readText: () => {
       try {
-        return clipboard.readText();
+        const cb = clipboard || (typeof require === "function" ? require("electron").clipboard : null);
+        if (cb && typeof cb.readText === "function") {
+          return cb.readText();
+        }
+        return "";
       } catch (err) {
         return "";
       }

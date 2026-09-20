@@ -348,7 +348,16 @@
               <h2 class="view-title">📦 Artifacts & Deliverables</h2>
               <p class="view-desc">Persistent storage directory (<code>artifacts/</code>) for meaningful outputs, generated plots, CSV exports, and reports.</p>
             </div>
-            <div class="view-actions">
+            <div class="view-actions" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+              <label for="artifacts-sort" style="font-size: 12px; color: var(--text-muted); white-space: nowrap;">Sort by:</label>
+              <select id="artifacts-sort" class="select-input" style="font-size: 12px; padding: 4px 8px; min-width: 140px; border-radius: var(--radius-sm, 6px); background: var(--bg-card, #1a1a2e); color: var(--text-main, #e0e0e0); border: 1px solid var(--border-card, #2a2a4a);">
+                <option value="date-desc">📅 Newest First</option>
+                <option value="date-asc">📅 Oldest First</option>
+                <option value="name-asc">🔤 Name A → Z</option>
+                <option value="name-desc">🔤 Name Z → A</option>
+                <option value="size-desc">📏 Largest First</option>
+                <option value="size-asc">📏 Smallest First</option>
+              </select>
               <button class="btn btn-secondary btn-sm" id="btn-refresh-artifacts">🔄 Refresh</button>
             </div>
           </div>
@@ -490,9 +499,9 @@
           </button>
           
           <select id="chat-mode" class="chat-mode-select" aria-label="Chat mode" title="Choose how AI Plate helps">
-            <option value="normal">Normal</option>
-            <option value="plan">Plan</option>
-            <option value="code">Code</option>
+            <option value="code" selected>⚡ Agent</option>
+            <option value="plan">📋 Plan</option>
+            <option value="normal">💬 Chat Only</option>
           </select>
           <textarea
             id="user-input"
@@ -1073,6 +1082,7 @@
                     <option value="lmstudio">LM Studio (Local)</option>
                     <option value="groq">Groq</option>
                     <option value="deepseek">DeepSeek</option>
+                    <option value="mistral">Mistral AI</option>
                   </select>
                 </div>
 
@@ -1103,6 +1113,7 @@
                     <option value="lmstudio">LM Studio (Local)</option>
                     <option value="groq">Groq</option>
                     <option value="deepseek">DeepSeek</option>
+                    <option value="mistral">Mistral AI</option>
                     <option value="anthropic">Anthropic</option>
                   </select>
                 </div>

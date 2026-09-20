@@ -11435,14 +11435,15 @@ textarea#user-input::placeholder {
 /* Chat modes stay independent of the model's thinking level. */
 .chat-mode-select {
   flex: 0 0 auto;
-  max-width: 100px;
-  padding: 7px 5px;
+  max-width: 120px;
+  padding: 7px 8px;
   border: 1px solid var(--border-color, #555);
   border-radius: 8px;
   background: var(--bg-secondary, #202024);
   color: var(--text-primary, #eee);
   font: inherit;
   font-size: 12px;
+  font-weight: 500;
   cursor: pointer;
 }
 .chat-mode-select:focus-visible { outline: 2px solid var(--accent, #8b7aff); }

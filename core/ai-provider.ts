@@ -52,6 +52,7 @@ export type ProviderType =
   | "groq"
   | "deepseek"
   | "openrouter"
+  | "mistral"
   | "custom";
 
 /** Configuration for creating an AI Provider instance. */

@@ -240,6 +240,7 @@ ANTHROPIC_API_KEY=your_anthropic_api_key_here
 OPENAI_API_KEY=your_openai_api_key_here
 GROQ_API_KEY=your_groq_api_key_here
 DEEPSEEK_API_KEY=your_deepseek_api_key_here
+MISTRAL_API_KEY=your_mistral_api_key_here
 ```
 
 > [!NOTE]

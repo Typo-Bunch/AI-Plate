@@ -39,9 +39,23 @@ export class OpenAIProvider implements AIProvider {
     embeddingModel?: string;
     providerType?: ProviderType;
   }) {
-    const rawApiKey = options.apiKey || process.env.OPENAI_API_KEY || "ollama";
-    const apiKey = typeof rawApiKey === "string" ? rawApiKey.trim().replace(/^["']|["']$/g, "").trim() : rawApiKey;
     this.providerType = options.providerType || "openai";
+
+    let rawApiKey = options.apiKey;
+    if (!rawApiKey) {
+      if (this.providerType === "mistral") {
+        rawApiKey = process.env.MISTRAL_API_KEY;
+      } else if (this.providerType === "groq") {
+        rawApiKey = process.env.GROQ_API_KEY;
+      } else if (this.providerType === "deepseek") {
+        rawApiKey = process.env.DEEPSEEK_API_KEY;
+      } else if (this.providerType === "openrouter") {
+        rawApiKey = process.env.OPENROUTER_API_KEY;
+      } else {
+        rawApiKey = process.env.OPENAI_API_KEY || "ollama";
+      }
+    }
+    const apiKey = typeof rawApiKey === "string" ? rawApiKey.trim().replace(/^["']|["']$/g, "").trim() : (rawApiKey || "key");
 
     // Auto-resolve defaults based on provider type
     if (this.providerType === "ollama") {
@@ -56,6 +70,9 @@ export class OpenAIProvider implements AIProvider {
     } else if (this.providerType === "deepseek") {
       this.model = options.model || process.env.DEEPSEEK_MODEL || "deepseek-chat";
       this.embeddingModel = options.embeddingModel || process.env.DEEPSEEK_EMBEDDING_MODEL || process.env.EMBEDDING_MODEL || "liquid/lfm-2.5-embedding-350m:free";
+    } else if (this.providerType === "mistral") {
+      this.model = options.model || process.env.MISTRAL_MODEL || "mistral-large-latest";
+      this.embeddingModel = options.embeddingModel || process.env.MISTRAL_EMBEDDING_MODEL || process.env.EMBEDDING_MODEL || "mistral-embed";
     } else {
       this.model = options.model || process.env.OPENAI_MODEL || "gpt-4o-mini";
       this.embeddingModel = options.embeddingModel || process.env.OPENAI_EMBEDDING_MODEL || process.env.EMBEDDING_MODEL || "text-embedding-3-small";
@@ -80,6 +97,43 @@ export class OpenAIProvider implements AIProvider {
       timeout: clientTimeout,
       maxRetries: 0, // We handle retries ourselves in withRetry()
     });
+  }
+
+  /**
+   * Sanitize message history to ensure valid OpenAI message sequencing.
+   *
+   * OpenAI API rules:
+   * 1. 'tool' role messages MUST follow an 'assistant' message that contains tool_calls.
+   * 2. Consecutive 'user' messages should be merged or separated by an assistant turn.
+   *
+   * This prevents "400 Unexpected role 'tool' after role 'user'" errors that can
+   * occur when conversation history is restored from persistence or when tool
+   * execution follows a user prompt without an intervening model response.
+   */
+  private sanitizeMessageHistory(): void {
+    const sanitized: OpenAI.Chat.ChatCompletionMessageParam[] = [];
+
+    for (let i = 0; i < this.messageHistory.length; i++) {
+      const msg = this.messageHistory[i];
+
+      if ((msg as any).role === "tool") {
+        // Check if the previous sanitized message is an assistant with tool_calls
+        const prev = sanitized[sanitized.length - 1];
+        if (prev && (prev as any).role === "assistant" && (prev as any).tool_calls && (prev as any).tool_calls.length > 0) {
+          // Valid: tool follows assistant with tool_calls
+          sanitized.push(msg);
+        } else {
+          // Orphaned tool message: skip it to avoid API error.
+          // This can happen when history is reloaded from flat user/model persistence
+          // but the tool call context was lost.
+          continue;
+        }
+      } else {
+        sanitized.push(msg);
+      }
+    }
+
+    this.messageHistory = sanitized;
   }
 
   createChat(systemPrompt: string, tools: ToolSchema[]): void {
@@ -110,6 +164,7 @@ export class OpenAIProvider implements AIProvider {
 
   async sendMessage(userMessage: string): Promise<LLMTurnResult> {
     this.messageHistory.push({ role: "user", content: userMessage });
+    this.sanitizeMessageHistory();
 
     const payload: any = {
       model: this.model,
@@ -157,6 +212,7 @@ export class OpenAIProvider implements AIProvider {
         content: JSON.stringify(res.response),
       });
     }
+    this.sanitizeMessageHistory();
 
     const payload: any = {
       model: this.model,

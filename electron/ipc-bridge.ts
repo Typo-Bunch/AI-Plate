@@ -936,9 +936,11 @@ export function setupIpcBridge(mainWindow: BrowserWindow): void {
     return { sessions: orchestrator.listSessions(), activeSessionId: orchestrator.activeSessionId };
   });
 
-  safeHandle("sessions:create", (_event, payload?: { title?: string }) => {
+  safeHandle("sessions:create", (_event, payload?: { title?: string; mode?: ChatMode }) => {
     const session = orchestrator.createSession(payload?.title || "New Chat");
-    return { success: true, session };
+    const mode = payload?.mode && isChatMode(payload.mode) ? payload.mode : "code";
+    orchestrator.getSessionMemory().setSessionMode(session.id, mode);
+    return { success: true, session: { ...session, mode } };
   });
 
   safeHandle("sessions:switch", (_event, payload: { sessionId: string }) => {

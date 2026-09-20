@@ -239,6 +239,31 @@ export class ProviderRegistry {
         "liquid/lfm-2.5-embedding-350m:free",
       ],
     });
+
+    // 9. Mistral AI Official Driver (OpenAI-compatible)
+    this.register({
+      name: "mistral",
+      displayName: "Mistral AI",
+      driver: "openai-compatible",
+      baseUrl: process.env.MISTRAL_BASE_URL || "https://api.mistral.ai/v1",
+      envKey: "MISTRAL_API_KEY",
+      defaultModel: "mistral-large-latest",
+      defaultEmbeddingModel: "mistral-embed",
+      availableModels: [
+        "mistral-large-latest",
+        "mistral-small-latest",
+        "codestral-latest",
+        "open-mistral-nemo",
+        "ministral-8b-latest",
+        "ministral-3b-latest",
+        "open-mixtral-8x22b",
+        "open-mixtral-8x7b",
+      ],
+      availableEmbeddingModels: [
+        "mistral-embed",
+        "liquid/lfm-2.5-embedding-350m:free",
+      ],
+    });
   }
 
   /**
@@ -436,7 +461,11 @@ export class ProviderRegistry {
           const OpenAI = (await import("openai")).default;
           const client = new OpenAI({ apiKey, baseURL: desc.baseUrl });
           const res = await client.models.list();
-          const list = res.data.map((m) => m.id);
+          let list = res.data.map((m) => m.id);
+          if (name === "groq") {
+            // Filter out specialized audio/TTS models or models requiring special console terms
+            list = list.filter((id) => !id.startsWith("canopylabs/") && !id.includes("whisper") && !id.includes("orpheus"));
+          }
           if (list.length > 0) fetched = list;
         }
       }
@@ -554,6 +583,16 @@ export class ProviderRegistry {
           const client = new OpenAI({ apiKey });
           const res = await client.models.list();
           const list = res.data.map((m) => m.id).filter((id) => id.includes("embedding") || id.startsWith("text-embedding"));
+          if (list.length > 0) fetched = list;
+        }
+      } else if (name === "mistral") {
+        const rawKey = process.env.MISTRAL_API_KEY;
+        const apiKey = typeof rawKey === "string" ? rawKey.trim().replace(/^["']|["']$/g, "").trim() : rawKey;
+        if (apiKey) {
+          const OpenAI = (await import("openai")).default;
+          const client = new OpenAI({ apiKey, baseURL: desc?.baseUrl || "https://api.mistral.ai/v1" });
+          const res = await client.models.list();
+          const list = res.data.map((m) => m.id).filter((id) => id.includes("embed"));
           if (list.length > 0) fetched = list;
         }
       } else if (name === "lmstudio") {
