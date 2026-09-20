@@ -4,7 +4,19 @@ export function isChatMode(value: unknown): value is ChatMode {
   return value === "normal" || value === "plan" || value === "code";
 }
 
-const normalTools = new Set(["web_search", "fetch_web_page", "query_knowledge_base", "list_knowledge_base"]);
+const normalTools = new Set([
+  "web_search",
+  "fetch_web_page",
+  "query_knowledge_base",
+  "list_knowledge_base",
+  "speak_text",
+  "list_tts_voices",
+  "transcribe_audio",
+  "get_stt_status",
+  "record_thinking",
+  "record_reasoning_step",
+  "record_outcome_summary",
+]);
 const planTools = new Set([...normalTools, "read_file", "list_sandbox_files", "list_artifacts"]);
 
 /** Unknown tools are excluded from read-only modes, including connector tools. */

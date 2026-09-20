@@ -34,6 +34,37 @@ IDLE_TIMEOUT_SECONDS = 300  # 5 minutes idle to unload model from RAM
 AUDIO_CACHE = {}
 AUDIO_CACHE_MAX = 64
 
+def write_audio(output_path, samples, sample_rate):
+    """Write audio samples to a WAV file.
+    Tries soundfile first, falling back to Python standard library wave module (zero dependencies).
+    """
+    try:
+        import soundfile as sf
+        sf.write(output_path, samples, sample_rate)
+        return
+    except ImportError:
+        pass
+
+    import wave
+    import struct
+    try:
+        import numpy as np
+        if isinstance(samples, np.ndarray):
+            clamped = np.clip(samples, -1.0, 1.0)
+            pcm_bytes = (clamped * 32767.0).astype(np.int16).tobytes()
+        else:
+            clamped = [max(-1.0, min(1.0, float(x))) for x in samples]
+            pcm_bytes = struct.pack(f"<{len(clamped)}h", *[int(x * 32767.0) for x in clamped])
+    except Exception:
+        clamped = [max(-1.0, min(1.0, float(x))) for x in samples]
+        pcm_bytes = struct.pack(f"<{len(clamped)}h", *[int(x * 32767.0) for x in clamped])
+
+    with wave.open(output_path, "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(int(sample_rate))
+        wf.writeframes(pcm_bytes)
+
 def get_kokoro(model_path=None, voices_path=None):
     global kokoro_instance
     with kokoro_lock:
@@ -147,14 +178,13 @@ def handle_request(req):
             os.makedirs(out_dir, exist_ok=True)
 
         try:
-            import soundfile as sf
             start_time = time.time()
             cache_key = (text, voice, round(speed, 2), lang)
 
             cached_item = AUDIO_CACHE.get(cache_key)
             if cached_item is not None:
                 samples, sample_rate = cached_item
-                sf.write(output_path, samples, sample_rate)
+                write_audio(output_path, samples, sample_rate)
                 duration = float(len(samples)) / float(sample_rate)
                 send_response({
                     "status": "ok",
@@ -169,7 +199,7 @@ def handle_request(req):
 
             k = get_kokoro(model_path, voices_path)
             samples, sample_rate = k.create(text, voice=voice, speed=speed, lang=lang)
-            sf.write(output_path, samples, sample_rate)
+            write_audio(output_path, samples, sample_rate)
             duration = float(len(samples)) / float(sample_rate)
             elapsed_ms = round((time.time() - start_time) * 1000)
 

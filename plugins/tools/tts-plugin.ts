@@ -6,6 +6,8 @@
  *   2. `list_tts_voices`   — List all available neural voice profiles and accents.
  */
 
+import { existsSync, mkdirSync, copyFileSync } from "node:fs";
+import { resolve, join } from "node:path";
 import { TTSService } from "../../core/tts-service.js";
 import type { ToolHandler, ToolPlugin, ToolSchema } from "../../core/types.js";
 
@@ -30,21 +32,68 @@ const speakHandler: ToolHandler = async (args) => {
   try {
     const result = await tts.synthesize(text, { voice, speed });
 
-    if (!result.success) {
+    if (!result.success || !result.audioPath) {
       return { error: result.error || "Speech synthesis failed." };
     }
 
     const cleanSpoken = tts.sanitizeTextForSpeech(text);
 
+    // Copy to persistent artifacts directory so it appears in the artifacts gallery
+    const artifactsDir = resolve(process.env.AIPLATE_USERDATA || process.cwd(), "artifacts");
+    if (!existsSync(artifactsDir)) mkdirSync(artifactsDir, { recursive: true });
+
+    let destFilename = (args.output_filename as string)?.trim();
+    if (!destFilename) {
+      destFilename = result.audioPath.split(/[/\\]/).pop() || `speech_${Date.now()}.wav`;
+    }
+    if (!destFilename.endsWith(".wav")) destFilename += ".wav";
+
+    const artifactPath = join(artifactsDir, destFilename);
+    copyFileSync(result.audioPath, artifactPath);
+
+    const audioUrl = `/api/artifacts/file?name=${encodeURIComponent(destFilename)}`;
+    const durationStr = result.duration ? `${result.duration.toFixed(1)}s` : "Audio";
+
+    const cardHtml = `
+      <div class="plugin-custom-card tts-audio-card" style="border: 1px solid rgba(139, 92, 246, 0.4); background: linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, rgba(59, 130, 246, 0.05) 100%); padding: 14px 16px; border-radius: 12px; display: flex; flex-direction: column; gap: 10px;">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 22px;">🔊</span>
+            <div>
+              <div style="font-weight: 700; font-size: 13.5px; color: var(--text-main); display: flex; align-items: center; gap: 6px;">
+                Kokoro Speech Synthesis
+                <span style="font-size: 10px; padding: 2px 7px; background: rgba(139, 92, 246, 0.2); color: #a78bfa; border-radius: 10px; font-weight: 700;">
+                  ${voice}
+                </span>
+              </div>
+              <div style="font-size: 11px; color: var(--text-dim);">
+                24kHz Studio Audio • ${durationStr}
+              </div>
+            </div>
+          </div>
+          <a href="${audioUrl}" download="${destFilename}" class="btn btn-secondary btn-xs" style="text-decoration: none; display: inline-flex; align-items: center; gap: 4px;" title="Download WAV audio file">
+            ⬇ Download
+          </a>
+        </div>
+        <audio controls src="${audioUrl}" style="width: 100%; height: 38px; border-radius: 8px; outline: none; margin-top: 4px;"></audio>
+        <div style="font-size: 11.5px; color: var(--text-muted); font-style: italic; line-height: 1.4; background: rgba(0,0,0,0.15); padding: 8px 10px; border-radius: 6px;">
+          "${cleanSpoken.length > 220 ? cleanSpoken.slice(0, 220) + "..." : cleanSpoken}"
+        </div>
+      </div>
+    `;
+
     return {
+      ui_type: "card",
+      html: cardHtml,
       success: true,
       message: `Speech synthesized successfully using voice "${voice}".`,
-      audioFile: result.audioPath,
+      audioFile: artifactPath,
+      filename: destFilename,
       durationSeconds: result.duration ? Math.round(result.duration * 10) / 10 : 0,
       sampleRate: result.sampleRate || 24000,
       elapsedMs: result.elapsedMs,
-      spokenText: cleanSpoken.length > 200 ? cleanSpoken.slice(0, 200) + "..." : cleanSpoken,
-      audioUrl: result.audioPath ? `/api/sandbox/file?name=${encodeURIComponent(result.audioPath.split(/[/\\]/).pop() || "")}` : undefined,
+      spokenText: cleanSpoken,
+      audioUrl,
     };
   } catch (err: any) {
     return { error: `Speech synthesis failed: ${err.message || String(err)}` };
@@ -54,26 +103,30 @@ const speakHandler: ToolHandler = async (args) => {
 const speakSchema: ToolSchema = {
   name: "speak_text",
   description:
-    "Convert text into natural sounding neural speech audio using local Kokoro-v1.0 ONNX. " +
-    "Generates a 24kHz studio-quality WAV audio file. Markdown formatting and code blocks " +
-    "are automatically sanitized so they sound natural when read aloud.",
+    "Generate, synthesize, or speak neural audio using local Kokoro-v1.0 ONNX. " +
+    "Use this tool whenever the user asks to generate audio, speak words, produce voiceover narration, or synthesize speech. " +
+    "Outputs a studio-quality 24kHz WAV audio deliverable with an in-chat playable audio card.",
   parametersJsonSchema: {
     type: "object",
     properties: {
       text: {
         type: "string",
-        description: "The text to synthesize into spoken audio.",
+        description: "The text or script to synthesize into spoken audio.",
       },
       voice: {
         type: "string",
         description:
           "Voice ID to use. Options include: 'af_heart' (default, American Female), " +
-          "'af_bella', 'af_nicole', 'af_sky', 'am_adam' (American Male), 'am_michael', " +
+          "'af_bella', 'af_nicole', 'af_sky', 'am_adam' (American Male), 'am_michael', 'am_santa' (Santa Claus voice), " +
           "'bf_emma' (British Female), 'bf_isabella', 'bm_george' (British Male).",
       },
       speed: {
         type: "number",
         description: "Speech rate multiplier from 0.5 to 2.0 (default: 1.0).",
+      },
+      output_filename: {
+        type: "string",
+        description: "Optional filename for the output WAV file (e.g. 'speech.wav', 'narration.wav').",
       },
     },
     required: ["text"],

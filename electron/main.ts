@@ -1,6 +1,7 @@
 import { app, BrowserWindow, shell, ipcMain, Notification, Menu, Tray, nativeImage, NativeImage, protocol, net, dialog, session } from "electron";
-import { join, resolve } from "node:path";
-import { existsSync } from "node:fs";
+import { join, resolve, extname } from "node:path";
+import { existsSync, createReadStream, statSync, readdirSync } from "node:fs";
+import { Readable } from "node:stream";
 import { fileURLToPath, pathToFileURL } from "node:url";
 // ipc-bridge is loaded dynamically (after process.chdir) so all its module-level
 // process.cwd() constants resolve to the correct userData path.
@@ -250,6 +251,127 @@ if (!gotTheLock) {
   });
 }
 
+let lastContextTarget: {
+  isPromptInput: boolean;
+  wordUnderCursor: string;
+  clientX?: number;
+  clientY?: number;
+  rect?: { left: number; top: number; right: number; bottom: number; width: number; height: number } | null;
+} = {
+  isPromptInput: false,
+  wordUnderCursor: "",
+};
+
+ipcMain.on("context-menu:target-info", (_event, info) => {
+  if (info && typeof info === "object") {
+    lastContextTarget = {
+      isPromptInput: Boolean(info.isPromptInput),
+      wordUnderCursor: typeof info.wordUnderCursor === "string" ? info.wordUnderCursor : "",
+      clientX: typeof info.clientX === "number" ? info.clientX : undefined,
+      clientY: typeof info.clientY === "number" ? info.clientY : undefined,
+      rect: info.rect && typeof info.rect === "object" ? info.rect : null,
+    };
+  }
+});
+
+/**
+ * Multi-source fast dictionary resolver:
+ * 1. Datamuse API (fastest, lightweight, structured POS + definitions)
+ * 2. Wiktionary REST API (comprehensive, global availability)
+ * 3. Free Dictionary API (fallback)
+ * 4. Wikipedia Summary (fallback for concepts/proper nouns)
+ */
+async function fetchWordDefinition(word: string): Promise<{ word: string; phonetic: string; meanings: string[] }> {
+  const clean = word.toLowerCase().trim();
+
+  // 1. Datamuse API (ultra fast, concise dictionary definitions with POS)
+  try {
+    const res = await fetch(`https://api.datamuse.com/words?sp=${encodeURIComponent(clean)}&md=d&max=1`, {
+      signal: AbortSignal.timeout(2500),
+    });
+    if (res.ok) {
+      const data: any = await res.json();
+      if (Array.isArray(data) && data[0]?.defs?.length) {
+        const posMap: Record<string, string> = { n: "noun", v: "verb", adj: "adj", adv: "adv", u: "" };
+        const meanings = data[0].defs.slice(0, 3).map((d: string) => {
+          const parts = d.split("\t");
+          const pos = posMap[parts[0]] || parts[0] || "";
+          const text = parts.slice(1).join(" ").trim();
+          return pos ? `(${pos}) ${text}` : text;
+        });
+        return { word: data[0].word || word, phonetic: "", meanings };
+      }
+    }
+  } catch {}
+
+  // 2. Wiktionary REST API (global CDN, robust definition markup)
+  try {
+    const res = await fetch(`https://en.wiktionary.org/api/rest_v1/page/definition/${encodeURIComponent(clean)}`, {
+      headers: { "User-Agent": "AIPlate/1.0 (internal)" },
+      signal: AbortSignal.timeout(3000),
+    });
+    if (res.ok) {
+      const data: any = await res.json();
+      const entries = data.en || (Object.values(data)[0] as any);
+      if (Array.isArray(entries) && entries.length) {
+        const meanings: string[] = [];
+        for (const entry of entries) {
+          const pos = entry.partOfSpeech ? `(${entry.partOfSpeech.toLowerCase()}) ` : "";
+          for (const def of (entry.definitions || [])) {
+            const cleanDef = (def.definition || "").replace(/<[^>]+>/g, "").trim();
+            if (cleanDef && cleanDef.length > 3) {
+              meanings.push(pos + cleanDef.split("\n")[0]);
+              if (meanings.length >= 3) break;
+            }
+          }
+          if (meanings.length >= 3) break;
+        }
+        if (meanings.length) return { word, phonetic: "", meanings };
+      }
+    }
+  } catch {}
+
+  // 3. Free Dictionary API (fallback)
+  try {
+    const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(clean)}`, {
+      signal: AbortSignal.timeout(2000),
+    });
+    if (res.ok) {
+      const data: any = await res.json();
+      const entry = Array.isArray(data) ? data[0] : data;
+      const meanings: string[] = [];
+      if (entry?.meanings) {
+        for (const m of entry.meanings.slice(0, 3)) {
+          const partOfSpeech = m.partOfSpeech || "";
+          const def = m.definitions?.[0]?.definition || "";
+          if (def) meanings.push(`(${partOfSpeech}) ${def}`);
+        }
+      }
+      const phonetic = entry?.phonetic || entry?.phonetics?.[0]?.text || "";
+      if (meanings.length) {
+        return { word: entry?.word || word, phonetic, meanings };
+      }
+    }
+  } catch {}
+
+  // 4. Wikipedia Summary (fallback for technical terms, proper nouns, concepts)
+  try {
+    const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(clean)}`, {
+      headers: { "User-Agent": "AIPlate/1.0 (internal)" },
+      signal: AbortSignal.timeout(2500),
+    });
+    if (res.ok) {
+      const data: any = await res.json();
+      if (data?.extract) {
+        const extract = String(data.extract).trim();
+        return { word: data.title || word, phonetic: "", meanings: [extract.length > 180 ? extract.slice(0, 180) + "…" : extract] };
+      }
+    }
+  } catch {}
+
+  return { word, phonetic: "", meanings: ["No definition found for this word."] };
+}
+
 async function createWindow() {
   const preloadPath = existsSync(join(__dirname, "preload.cjs"))
     ? join(__dirname, "preload.cjs")
@@ -279,7 +401,7 @@ async function createWindow() {
       nodeIntegration: false,
       sandbox: false,
       backgroundThrottling: false,
-      spellcheck: false,
+      spellcheck: true,
     },
   });
 
@@ -401,6 +523,73 @@ async function createWindow() {
       event.preventDefault();
       shell.openExternal(url);
     }
+  });
+
+  // ─── Custom Right-Click Context Menu ───────────────────────────────
+  // Shows only: Copy, Paste, Spelling suggestions (STRICTLY prompt input only), Word definition
+  mainWindow.webContents.on("context-menu", (event, params) => {
+    const menuItems: Electron.MenuItemConstructorOptions[] = [];
+
+    // 1. Spelling suggestions — STRICTLY ONLY when right-clicking inside the prompt input box
+    const isPromptInput = Boolean(lastContextTarget.isPromptInput && params.isEditable);
+    if (isPromptInput && params.misspelledWord && params.dictionarySuggestions && params.dictionarySuggestions.length > 0) {
+      for (const suggestion of params.dictionarySuggestions.slice(0, 5)) {
+        menuItems.push({
+          label: suggestion,
+          click: () => mainWindow!.webContents.replaceMisspelling(suggestion),
+        });
+      }
+      menuItems.push({ type: "separator" });
+    }
+
+    // 2. Copy
+    menuItems.push({
+      label: "Copy",
+      accelerator: "CmdOrCtrl+C",
+      enabled: params.editFlags.canCopy,
+      click: () => mainWindow!.webContents.copy(),
+    });
+
+    // 3. Paste
+    menuItems.push({
+      label: "Paste",
+      accelerator: "CmdOrCtrl+V",
+      enabled: params.editFlags.canPaste,
+      click: () => mainWindow!.webContents.paste(),
+    });
+
+    // 4. Word Definition — shown when a single word (or short phrase) is selected or right-clicked
+    const rawWord = (params.selectionText || lastContextTarget.wordUnderCursor || "").trim();
+    const cleanWord = rawWord.split(/\s+/)[0]?.replace(/[^a-zA-Z'-]/g, "") || "";
+    if (cleanWord && cleanWord.length >= 2 && cleanWord.length <= 45) {
+      menuItems.push({ type: "separator" });
+      menuItems.push({
+        label: `Define "${cleanWord.length > 20 ? cleanWord.slice(0, 20) + "…" : cleanWord}"`,
+        click: async () => {
+          try {
+            const defResult = await fetchWordDefinition(cleanWord);
+            mainWindow!.webContents.send("context-menu:word-definition", {
+              ...defResult,
+              x: lastContextTarget.clientX,
+              y: lastContextTarget.clientY,
+              rect: lastContextTarget.rect,
+            });
+          } catch (err) {
+            mainWindow!.webContents.send("context-menu:word-definition", {
+              word: cleanWord,
+              phonetic: "",
+              meanings: ["No definition found for this word."],
+              x: lastContextTarget.clientX,
+              y: lastContextTarget.clientY,
+              rect: lastContextTarget.rect,
+            });
+          }
+        },
+      });
+    }
+
+    const contextMenu = Menu.buildFromTemplate(menuItems);
+    contextMenu.popup({ window: mainWindow! });
   });
 
   const wasOpenedHidden =
@@ -738,6 +927,163 @@ app.whenReady().then(async () => {
 
   setupApplicationMenu();
 
+  const MEDIA_MIME_MAP: Record<string, string> = {
+    ".mp4": "video/mp4",
+    ".webm": "video/webm",
+    ".ogg": "video/ogg",
+    ".ogv": "video/ogg",
+    ".mov": "video/quicktime",
+    ".mkv": "video/x-matroska",
+    ".avi": "video/x-msvideo",
+    ".m4v": "video/mp4",
+    ".mp3": "audio/mpeg",
+    ".wav": "audio/wav",
+    ".m4a": "audio/mp4",
+    ".aac": "audio/aac",
+    ".flac": "audio/flac",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+    ".gif": "image/gif",
+    ".svg": "image/svg+xml",
+    ".ico": "image/x-icon",
+    ".json": "application/json",
+    ".txt": "text/plain",
+    ".md": "text/markdown",
+    ".html": "text/html",
+    ".css": "text/css",
+    ".js": "text/javascript",
+    ".pdf": "application/pdf",
+  };
+
+  function searchFileRecursive(dir: string, targetName: string, maxDepth = 3): string | null {
+    if (maxDepth <= 0 || !existsSync(dir)) return null;
+    try {
+      const entries = readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        const full = resolve(dir, entry.name);
+        if (entry.isFile() && entry.name.toLowerCase() === targetName.toLowerCase()) {
+          return full;
+        }
+        if (
+          entry.isDirectory() &&
+          entry.name !== "node_modules" &&
+          entry.name !== ".git" &&
+          entry.name !== "venv" &&
+          entry.name !== ".venv_manim" &&
+          entry.name !== "__pycache__"
+        ) {
+          const found = searchFileRecursive(full, targetName, maxDepth - 1);
+          if (found) return found;
+        }
+      }
+    } catch {}
+    return null;
+  }
+
+  function findMediaFileInDirs(requestedName: string, candidateDirs: string[]): string | null {
+    if (!requestedName) return null;
+    const decoded = decodeURIComponent(requestedName).trim();
+    const rawClean = decoded.replace(/^[/\\]+/, "");
+    const baseName = rawClean.split(/[/\\]/).pop() || rawClean;
+
+    for (const dir of candidateDirs) {
+      if (!dir || !existsSync(dir)) continue;
+
+      // 1. Direct path relative to dir
+      const p1 = resolve(dir, rawClean);
+      if (existsSync(p1)) {
+        try {
+          if (statSync(p1).isFile()) return p1;
+        } catch {}
+      }
+
+      // 2. Basename in root of dir
+      const p2 = resolve(dir, baseName);
+      if (existsSync(p2)) {
+        try {
+          if (statSync(p2).isFile()) return p2;
+        } catch {}
+      }
+
+      // 3. Search common subdirectories
+      const subdirs = ["animations", "videos", "media", "audio", "plots", "images", "artifacts", "artifacts/animations"];
+      for (const sub of subdirs) {
+        const pSub = resolve(dir, sub, baseName);
+        if (existsSync(pSub)) {
+          try {
+            if (statSync(pSub).isFile()) return pSub;
+          } catch {}
+        }
+      }
+
+      // 4. Recursive search
+      const deepFound = searchFileRecursive(dir, baseName, 3);
+      if (deepFound) return deepFound;
+    }
+    return null;
+  }
+
+  function serveLocalFileWithRange(target: string, request: Request): Response {
+    try {
+      const stat = statSync(target);
+      const fileSize = stat.size;
+      const ext = extname(target).toLowerCase();
+      const mime = MEDIA_MIME_MAP[ext] || "application/octet-stream";
+
+      const rangeHeader = request.headers.get("range");
+      if (rangeHeader) {
+        const match = /bytes=(\d*)-(\d*)/.exec(rangeHeader);
+        if (match) {
+          let start = match[1] ? parseInt(match[1], 10) : 0;
+          let end = match[2] ? parseInt(match[2], 10) : fileSize - 1;
+
+          if (isNaN(start)) start = 0;
+          if (isNaN(end) || end >= fileSize) end = fileSize - 1;
+
+          if (start > end || start >= fileSize) {
+            return new Response(null, {
+              status: 416,
+              headers: {
+                "Content-Range": `bytes */${fileSize}`,
+                "Accept-Ranges": "bytes",
+              },
+            });
+          }
+
+          const chunkSize = end - start + 1;
+          const stream = Readable.toWeb(createReadStream(target, { start, end })) as any;
+
+          return new Response(stream, {
+            status: 206,
+            headers: {
+              "Content-Range": `bytes ${start}-${end}/${fileSize}`,
+              "Accept-Ranges": "bytes",
+              "Content-Length": String(chunkSize),
+              "Content-Type": mime,
+              "Access-Control-Allow-Origin": "*",
+            },
+          });
+        }
+      }
+
+      const stream = Readable.toWeb(createReadStream(target)) as any;
+      return new Response(stream, {
+        status: 200,
+        headers: {
+          "Content-Length": String(fileSize),
+          "Content-Type": mime,
+          "Accept-Ranges": "bytes",
+          "Access-Control-Allow-Origin": "*",
+        },
+      });
+    } catch (err) {
+      logger.error("App", `Error serving media file with range: ${err}`);
+      return new Response(`Error reading file: ${err}`, { status: 500 });
+    }
+  }
+
   // Handle 'app://' protocol to serve local UI assets directly from disk / asar
   protocol.handle("app", (request) => {
     const url = new URL(request.url);
@@ -746,18 +1092,18 @@ app.whenReady().then(async () => {
     // Direct serve for /api/artifacts/file or /api/media/file (supports <img src="...">, <video src="...">)
     if (pathname === "/api/artifacts/file" || pathname === "/api/media/file") {
       const name = url.searchParams.get("name") || "";
-      const cleanName = name.replace(/^[/\\]+/, "").split(/[/\\]/).pop() || name;
       const candidateDirs = [
+        resolve(process.cwd(), "artifacts"),
         resolve(app.getPath("userData"), "artifacts"),
         process.env.AIPLATE_USERDATA ? resolve(process.env.AIPLATE_USERDATA, "artifacts") : "",
-        resolve(process.cwd(), "artifacts"),
+        resolve(process.cwd(), ".sandbox", "artifacts"),
+        resolve(process.cwd(), ".sandbox"),
+        resolve(app.getPath("userData"), ".sandbox"),
       ].filter(Boolean);
 
-      for (const dir of candidateDirs) {
-        const target = resolve(dir, cleanName);
-        if (existsSync(target)) {
-          return net.fetch(pathToFileURL(target).toString());
-        }
+      const target = findMediaFileInDirs(name, candidateDirs);
+      if (target && existsSync(target)) {
+        return serveLocalFileWithRange(target, request);
       }
       return new Response("File Not Found", { status: 404 });
     }
@@ -765,18 +1111,18 @@ app.whenReady().then(async () => {
     // Direct serve for /api/sandbox/file (supports <img src="...">, <video src="...">)
     if (pathname === "/api/sandbox/file") {
       const name = url.searchParams.get("name") || "";
-      const cleanName = name.replace(/^[/\\]+/, "").split(/[/\\]/).pop() || name;
       const candidateDirs = [
+        resolve(process.cwd(), ".sandbox"),
+        resolve(process.cwd(), ".sandbox", "artifacts"),
         resolve(app.getPath("userData"), ".sandbox"),
         process.env.AIPLATE_USERDATA ? resolve(process.env.AIPLATE_USERDATA, ".sandbox") : "",
-        resolve(process.cwd(), ".sandbox"),
+        resolve(process.cwd(), "artifacts"),
+        resolve(app.getPath("userData"), "artifacts"),
       ].filter(Boolean);
 
-      for (const dir of candidateDirs) {
-        const target = resolve(dir, cleanName);
-        if (existsSync(target)) {
-          return net.fetch(pathToFileURL(target).toString());
-        }
+      const target = findMediaFileInDirs(name, candidateDirs);
+      if (target && existsSync(target)) {
+        return serveLocalFileWithRange(target, request);
       }
       return new Response("File Not Found", { status: 404 });
     }

@@ -1818,12 +1818,28 @@ body.sidebar-collapsed #sidebar-toggle-btn,
 }
 
 .step-io-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   font-size: 10px;
   font-weight: 700;
   color: var(--text-dim);
   letter-spacing: 0.6px;
   margin-bottom: 4px;
   text-transform: uppercase;
+}
+
+.step-copy-btn {
+  font-size: 10.5px;
+  padding: 1px 6px;
+  text-transform: none;
+  letter-spacing: normal;
+  border-radius: var(--radius-xs, 4px);
+  opacity: 0.8;
+}
+
+.step-copy-btn:hover {
+  opacity: 1;
 }
 
 .step-code-box {
@@ -1839,6 +1855,227 @@ body.sidebar-collapsed #sidebar-toggle-btn,
   white-space: pre-wrap;
   word-break: break-all;
   margin: 0;
+}
+
+/* ─── Cognitive Meta-Reasoning Traces ──────────────────────────────── */
+
+.cog-stage-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: var(--radius-pill, 10px);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  flex-shrink: 0;
+}
+
+.cog-stage-hypothesis {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.cog-stage-alternatives {
+  background: rgba(168, 85, 247, 0.15);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.3);
+}
+
+.cog-stage-assumption {
+  background: rgba(100, 116, 139, 0.2);
+  color: #94a3b8;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+}
+
+.cog-stage-self_correction {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  animation: pulseAmber 2s infinite ease-in-out;
+}
+
+@keyframes pulseAmber {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.3); }
+  50% { box-shadow: 0 0 6px 1px rgba(245, 158, 11, 0.2); }
+}
+
+.cog-stage-verification {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.cog-stage-action_plan {
+  background: rgba(6, 182, 212, 0.15);
+  color: #22d3ee;
+  border: 1px solid rgba(6, 182, 212, 0.3);
+}
+
+.cog-stage-analysis {
+  background: rgba(99, 102, 241, 0.15);
+  color: #818cf8;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+}
+
+.cog-confidence-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 9.5px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: var(--radius-pill, 8px);
+  flex-shrink: 0;
+  cursor: help;
+}
+
+.cog-conf-high {
+  background: rgba(34, 197, 94, 0.12);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.25);
+}
+
+.cog-conf-medium {
+  background: rgba(234, 179, 8, 0.12);
+  color: #facc15;
+  border: 1px solid rgba(234, 179, 8, 0.25);
+}
+
+.cog-conf-low {
+  background: rgba(239, 68, 68, 0.12);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+/* Cognitive Drawer Details */
+.cognitive-trace-view {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 2px 0;
+}
+
+.cog-panel-block {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 9px 11px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.cog-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-main);
+  letter-spacing: 0.3px;
+  margin-bottom: 5px;
+}
+
+.cog-thought-body {
+  color: var(--text-muted);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.cog-alternatives-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.cog-alt-card {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.02);
+  font-size: 11.5px;
+}
+
+.cog-alt-card.selected {
+  border-color: rgba(99, 102, 241, 0.4);
+  background: rgba(99, 102, 241, 0.06);
+}
+
+.cog-alt-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+  color: var(--text-main);
+  margin-bottom: 2px;
+}
+
+.cog-alt-pill {
+  font-size: 9px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.cog-alt-pill.selected {
+  background: rgba(99, 102, 241, 0.2);
+  color: #a5b4fc;
+}
+
+.cog-alt-pill.discarded {
+  background: rgba(148, 163, 184, 0.15);
+  color: #94a3b8;
+}
+
+.cog-alt-body {
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+.cog-assumptions-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+  list-style: none;
+  padding: 0;
+}
+
+.cog-assumption-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(148, 163, 184, 0.1);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.cog-self-correction-callout {
+  border-left: 3px solid #f59e0b;
+  background: rgba(245, 158, 11, 0.06);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  padding: 8px 12px;
+}
+
+.cog-raw-toggle {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.cog-raw-toggle summary {
+  user-select: none;
+  outline: none;
+  margin-bottom: 4px;
 }
 
 /* ─── Tool Callout Indicators (Legacy fallback) ────────────────────── */
