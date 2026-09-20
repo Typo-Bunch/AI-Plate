@@ -6199,6 +6199,148 @@ function showPluginToast(message, isError = false) {
   }, 3500);
 }
 
+// ─── Word Definition Bubble (context menu "Define" action) ────────────
+window.addEventListener("context-menu:word-definition", (e) => {
+  const { word, phonetic, meanings, x, y, rect } = e.detail || {};
+  if (!word) return;
+
+  // Remove any existing definition bubble
+  const existing = document.getElementById("word-definition-bubble");
+  if (existing) existing.remove();
+
+  const bubble = document.createElement("div");
+  bubble.id = "word-definition-bubble";
+
+  const safeWord = escapeHtmlStr(word);
+  const safePhonetic = phonetic ? escapeHtmlStr(phonetic) : "";
+  const meaningsList = (meanings || []).map(m =>
+    `<div style="margin-bottom: 4px; line-height: 1.45; color: #e4e4e7; font-size: 11.5px;">${escapeHtmlStr(m)}</div>`
+  ).join("");
+
+  bubble.innerHTML = `
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; padding-bottom: 5px; border-bottom: 1px solid rgba(255,255,255,0.08);">
+      <div style="display: flex; align-items: baseline; gap: 6px; overflow: hidden;">
+        <span style="font-size: 13px; font-weight: 700; color: #818cf8; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;">${safeWord}</span>
+        ${safePhonetic ? `<span style="font-size: 11px; color: #a1a1aa; font-style: italic; white-space: nowrap;">${safePhonetic}</span>` : ""}
+      </div>
+      <button id="word-def-bubble-close" type="button" style="
+        background: transparent;
+        border: none;
+        color: #71717a;
+        font-size: 12px;
+        width: 18px;
+        height: 18px;
+        border-radius: 4px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        line-height: 1;
+        transition: color 0.15s, background 0.15s;
+      " title="Close">✕</button>
+    </div>
+    <div style="max-height: 160px; overflow-y: auto; padding-right: 2px;">
+      ${meaningsList || `<div style="color: #a1a1aa; font-size: 11.5px;">No definition available.</div>`}
+    </div>
+  `;
+
+  // Base styling for sleek floating bubble
+  const bubbleWidth = Math.min(300, window.innerWidth - 28);
+  bubble.style.cssText = `
+    position: fixed;
+    width: ${bubbleWidth}px;
+    background: rgba(18, 18, 24, 0.96);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(99, 102, 241, 0.35);
+    border-radius: 10px;
+    padding: 10px 12px;
+    z-index: 100000;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(99, 102, 241, 0.15);
+    opacity: 0;
+    transform: scale(0.94);
+    transition: opacity 0.15s cubic-bezier(0.16, 1, 0.3, 1), transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+    font-family: var(--font-main, 'Inter', sans-serif);
+    pointer-events: auto;
+  `;
+
+  document.body.appendChild(bubble);
+
+  // Calculate coordinates: place right beside or above/below the word
+  const bubbleHeight = bubble.offsetHeight || 90;
+  let anchorX = typeof x === "number" ? x : window.innerWidth / 2;
+  let anchorTop = typeof y === "number" ? y : window.innerHeight / 2;
+  let anchorBottom = anchorTop;
+
+  if (rect && typeof rect.left === "number") {
+    anchorX = (rect.left + rect.right) / 2;
+    anchorTop = rect.top;
+    anchorBottom = rect.bottom;
+  }
+
+  // Horizontal alignment: center on word, clamp to viewport edges
+  let leftPos = anchorX - (bubbleWidth / 2);
+  leftPos = Math.max(14, Math.min(window.innerWidth - bubbleWidth - 14, leftPos));
+
+  // Vertical alignment: prefer directly above the word; if not enough space, place directly below
+  let topPos;
+  if (anchorTop > bubbleHeight + 20) {
+    topPos = anchorTop - bubbleHeight - 8;
+  } else {
+    topPos = anchorBottom + 8;
+  }
+  topPos = Math.max(10, Math.min(window.innerHeight - bubbleHeight - 10, topPos));
+
+  bubble.style.left = `${Math.round(leftPos)}px`;
+  bubble.style.top = `${Math.round(topPos)}px`;
+
+  // Animate in
+  requestAnimationFrame(() => {
+    bubble.style.opacity = "1";
+    bubble.style.transform = "scale(1)";
+  });
+
+  // Close handlers
+  const dismiss = () => {
+    bubble.style.opacity = "0";
+    bubble.style.transform = "scale(0.95)";
+    setTimeout(() => bubble.remove(), 150);
+    document.removeEventListener("mousedown", outsideClick);
+    document.removeEventListener("keydown", escKey);
+    window.removeEventListener("scroll", dismiss, true);
+  };
+
+  const closeBtn = document.getElementById("word-def-bubble-close");
+  if (closeBtn) {
+    closeBtn.addEventListener("click", dismiss);
+    closeBtn.addEventListener("mouseenter", () => { closeBtn.style.color = "#e4e4e7"; closeBtn.style.background = "rgba(255,255,255,0.08)"; });
+    closeBtn.addEventListener("mouseleave", () => { closeBtn.style.color = "#71717a"; closeBtn.style.background = "transparent"; });
+  }
+
+  const outsideClick = (ev) => {
+    if (!bubble.contains(ev.target)) {
+      dismiss();
+    }
+  };
+  const escKey = (ev) => {
+    if (ev.key === "Escape") dismiss();
+  };
+
+  setTimeout(() => {
+    document.addEventListener("mousedown", outsideClick);
+    document.addEventListener("keydown", escKey);
+    window.addEventListener("scroll", dismiss, { capture: true, passive: true });
+  }, 50);
+
+  // Auto-dismiss after 9 seconds
+  setTimeout(() => {
+    if (document.getElementById("word-definition-bubble") === bubble) {
+      dismiss();
+    }
+  }, 9000);
+});
+
 async function loadPlugins() {
   try {
     const res = await fetch("/api/plugins");
@@ -7295,8 +7437,11 @@ window.teardownPluginEffects = function (pluginId) {
   }
 
   // Remove any custom card elements produced by this plugin
+  const outcomeSelectors = (pId === "outcome_summary" || pluginId === "outcome_summary")
+    ? ", .outcome-summary-card, .execution-outcome-card"
+    : "";
   document.querySelectorAll(
-    `[data-plugin-card="${pluginId}"], [data-plugin-card="${pId}"], .plugin-card-${pluginId}, .plugin-card-${pId}, .outcome-summary-card, .execution-outcome-card`
+    `[data-plugin-card="${pluginId}"], [data-plugin-card="${pId}"], .plugin-card-${pluginId}, .plugin-card-${pId}${outcomeSelectors}`
   ).forEach((el) => el.remove());
   if (pId === "outcome_summary") delete window.renderOutcomeSummaryCard;
 
@@ -8628,7 +8773,7 @@ async function renderInChatArtifactCard(blockElement, artifactInfo) {
         <a href="${fileUrl}" download="${escapeHtmlStr(filename)}" class="inchat-artifact-btn" title="Download File">⬇ Download</a>
         <a href="${fileUrl}" target="_blank" class="inchat-artifact-btn" title="Open in New Tab">↗ Open</a>
         ${typeof PluginUIHost !== "undefined" && PluginUIHost.getButtonsForFile(fileUrl, filename, "inchat") ? PluginUIHost.getButtonsForFile(fileUrl, filename, "inchat") : ""}
-        ${isVideo ? `<button type="button" class="inchat-artifact-btn primary" onclick="openVideoModal('${fileUrl}', '${escapeHtmlStr(cleanFilename)}', ${artifactInfo.isSandbox ? true : false})">▶ Play Video</button>` : ""}
+        ${isVideo ? `<button type="button" class="inchat-artifact-btn primary" onclick="openVideoModal('${fileUrl}', '${escapeHtmlStr(cleanFilename)}', ${artifactInfo.isSandbox ? true : false})">▶ Play Video</button><button type="button" class="inchat-artifact-btn" onclick="if(window.electronAPI && window.electronAPI.artifacts.openExternal) window.electronAPI.artifacts.openExternal('${encodeURIComponent(cleanFilename)}', ${artifactInfo.isSandbox ? true : false}, 'play');" title="Open in default media player">🖥 External Player</button>` : ""}
         ${isAudio ? `<button type="button" class="inchat-artifact-btn primary" onclick="openAudioModal('${fileUrl}', '${escapeHtmlStr(cleanFilename)}', ${artifactInfo.isSandbox ? true : false})">▶ Play Audio</button>` : ""}
         ${(isCode || isCsv) ? `<button type="button" class="inchat-artifact-btn primary" onclick="viewArtifactCode('${encodeURIComponent(filename)}')">👁 View Full</button>` : ""}
       </div>
@@ -8647,8 +8792,12 @@ async function renderInChatArtifactCard(blockElement, artifactInfo) {
   } else if (isVideo) {
     const safeTitle = escapeHtmlStr(filename).replace(/'/g, "\\'");
     bodyHtml = `
-      <div class="inchat-artifact-video-slot">
-        <video src="${fileUrl}" preload="metadata" controls style="max-width: 100%; max-height: 380px; width: 100%; border-radius: var(--radius-sm); background: #000;"></video>
+      <div class="inchat-artifact-video-slot" style="position: relative;">
+        <video src="${fileUrl}" preload="metadata" controls playsinline style="max-width: 100%; max-height: 380px; width: 100%; border-radius: var(--radius-sm); background: #000;" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"></video>
+        <div style="display: none; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 20px; background: rgba(0,0,0,0.75); border-radius: var(--radius-sm); min-height: 120px;">
+          <div style="font-size: 28px;">🎬</div>
+          <div style="color: var(--text-dim); font-size: 12px;">Video preview unavailable — use Play Video or External Player above</div>
+        </div>
       </div>
     `;
   } else if (isAudio) {
@@ -8825,7 +8974,7 @@ window.PluginUIHost = {
       const activePluginIds = new Set((this.activeExtensions || []).map((e) => e.pluginId));
       for (const [pluginId, handler] of Object.entries(window.__PLUGIN_CHAT_CARD_HANDLERS)) {
         // Enforce strict independence: if plugin is not active, purge handler and never render
-        if (!activePluginIds.has(pluginId)) {
+        if (pluginId !== "outcome_summary" && !activePluginIds.has(pluginId)) {
           delete window.__PLUGIN_CHAT_CARD_HANDLERS[pluginId];
           continue;
         }
@@ -9236,11 +9385,17 @@ window.openVideoModal = function (src, title = "Video Preview", isSandbox = fals
 
   const contentHtml = `
     <div class="video-modal-container" style="display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 6px; width: 100%;">
-      <div style="width: 100%; max-height: 72vh; background: #000; border-radius: var(--radius-sm); overflow: hidden; display: flex; justify-content: center; align-items: center; box-shadow: 0 8px 32px rgba(0,0,0,0.6);">
-        <video id="active-modal-video" controls autoplay playsinline style="max-width: 100%; max-height: 72vh; width: 100%; outline: none;" preload="auto">
-          <source src="${src}" type="${mime}">
-          Your browser does not support HTML5 video playback.
-        </video>
+      <div id="video-modal-player-wrap" style="width: 100%; max-height: 72vh; background: #000; border-radius: var(--radius-sm); overflow: hidden; display: flex; justify-content: center; align-items: center; box-shadow: 0 8px 32px rgba(0,0,0,0.6); position: relative;">
+        <video id="active-modal-video" src="${src}" controls autoplay playsinline style="max-width: 100%; max-height: 72vh; width: 100%; outline: none;" preload="auto" type="${mime}"></video>
+        <div id="video-error-fallback" style="display: none; position: absolute; inset: 0; background: rgba(0,0,0,0.85); flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 24px; text-align: center;">
+          <div style="font-size: 40px;">⚠️</div>
+          <div style="color: #f59e0b; font-weight: 600; font-size: 14px;">Video cannot be played in the embedded player</div>
+          <div style="color: var(--text-dim); font-size: 12px; max-width: 320px;">The codec or container may not be supported by Chromium. Use the buttons below to play in your OS default media player.</div>
+          <div style="display: flex; gap: 8px; margin-top: 6px;">
+            <button type="button" class="btn btn-primary btn-sm" onclick="if(window.electronAPI && window.electronAPI.artifacts.openExternal) window.electronAPI.artifacts.openExternal('${encodeURIComponent(title)}', ${isSandbox}, 'play'); else showPluginToast('External player not available in web mode');" title="Open in default OS media player">▶ Open in Default Player</button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="if(window.electronAPI && window.electronAPI.artifacts.openExternal) window.electronAPI.artifacts.openExternal('${encodeURIComponent(title)}', ${isSandbox}, 'folder'); else showPluginToast('Folder view not available in web mode');" title="Show file in Explorer/Finder">📁 Show in Folder</button>
+          </div>
+        </div>
       </div>
       <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; width: 100%; gap: 10px; margin-top: 4px;">
         <div style="display: flex; align-items: center; gap: 8px;">
@@ -9255,14 +9410,37 @@ window.openVideoModal = function (src, title = "Video Preview", isSandbox = fals
           <button type="button" class="btn btn-secondary btn-sm" onclick="const v=document.getElementById('active-modal-video'); if(v) { v.loop = !v.loop; this.classList.toggle('active', v.loop); showPluginToast(v.loop ? '🔁 Looping enabled' : '➡️ Looping disabled'); }" title="Toggle Repeat Loop">🔁 Loop</button>
         </div>
         <div style="display: flex; gap: 8px;">
+          <button type="button" class="btn btn-secondary btn-sm" onclick="if(window.electronAPI && window.electronAPI.artifacts.openExternal) window.electronAPI.artifacts.openExternal('${encodeURIComponent(title)}', ${isSandbox}, 'play'); else showPluginToast('External player not available');" title="Open in default OS media player">▶ Open in Player</button>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="if(window.electronAPI && window.electronAPI.artifacts.openExternal) window.electronAPI.artifacts.openExternal('${encodeURIComponent(title)}', ${isSandbox}, 'folder');" title="Show in file explorer">📁 Folder</button>
           <button type="button" class="btn btn-secondary btn-sm" onclick="shareArtifactWeb('${encodeURIComponent(title)}', ${isSandbox}, this)" title="Share video to web">🌐 Share to Web</button>
           <a href="${src}" download="${safeTitle}" class="btn btn-secondary btn-sm" style="text-decoration: none;">⬇ Download Video</a>
-          <a href="${src}" target="_blank" class="btn btn-secondary btn-sm" style="text-decoration: none;">↗ Open Raw</a>
         </div>
       </div>
     </div>
   `;
   window.openModal(`🎬 ${title}`, contentHtml);
+
+  // Attach error handler after modal renders
+  requestAnimationFrame(() => {
+    const vid = document.getElementById("active-modal-video");
+    const errFallback = document.getElementById("video-error-fallback");
+    if (vid && errFallback) {
+      vid.onerror = () => {
+        errFallback.style.display = "flex";
+        vid.style.opacity = "0.15";
+        console.warn("[VideoModal] Video playback error for:", title, vid.error);
+      };
+      // Also handle stall/timeout — if video hasn't started playing in 5s, show fallback
+      let playStarted = false;
+      vid.addEventListener("playing", () => { playStarted = true; }, { once: true });
+      setTimeout(() => {
+        if (!playStarted && vid.readyState < 2) {
+          errFallback.style.display = "flex";
+          vid.style.opacity = "0.15";
+        }
+      }, 5000);
+    }
+  });
 };
 
 window.openAudioModal = function (src, title = "Audio Playback", isSandbox = false) {
@@ -9692,7 +9870,59 @@ function streamTextToElement(options) {
   tick();
 }
 
-// ─── Code Copy Helper ───────────────────────────────────────────────
+// ─── Universal Robust Clipboard & Copy Engine ────────────────────────
+
+window.universalCopyText = async function (text, btn, successMsg = "✓ Copied!", defaultMsg = "📋 Copy") {
+  if (text === null || text === undefined) return false;
+  const str = String(text);
+  if (str.length === 0) return false;
+  let copied = false;
+
+  // 1. Electron Native Clipboard Bridge (Bypasses all browser sandbox/focus restrictions)
+  if (window.electronAPI && window.electronAPI.clipboard && typeof window.electronAPI.clipboard.writeText === "function") {
+    try {
+      copied = Boolean(window.electronAPI.clipboard.writeText(str));
+    } catch {}
+  }
+
+  // 2. Standard navigator.clipboard API
+  if (!copied && navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+    try {
+      await navigator.clipboard.writeText(str);
+      copied = true;
+    } catch {}
+  }
+
+  // 3. Fallback textarea + document.execCommand('copy')
+  if (!copied) {
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = str;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      ta.style.top = "-9999px";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      copied = document.execCommand("copy");
+      document.body.removeChild(ta);
+    } catch {}
+  }
+
+  if (btn) {
+    const origHtml = btn.innerHTML;
+    btn.innerHTML = copied ? successMsg : "❌ Failed";
+    btn.classList.toggle("copied", copied);
+    setTimeout(() => {
+      btn.innerHTML = origHtml;
+      btn.classList.remove("copied");
+    }, 2000);
+  }
+
+  return copied;
+};
 
 window.copyCode = function (btn, encodedCode) {
   let code = "";
@@ -9702,25 +9932,27 @@ window.copyCode = function (btn, encodedCode) {
     } catch {
       code = encodedCode;
     }
-  } else {
-    const wrapper = btn ? btn.closest(".code-block-wrapper") : null;
-    const codeEl = wrapper ? wrapper.querySelector("code") : null;
-    code = codeEl ? (codeEl.innerText || codeEl.textContent || "") : "";
   }
 
-  const setFeedback = (msg) => {
-    btn.textContent = msg;
-    setTimeout(() => (btn.textContent = "📋 Copy"), 2000);
-  };
-
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard
-      .writeText(code)
-      .then(() => setFeedback("✓ Copied!"))
-      .catch(() => setFeedback("✓ Copied!"));
-  } else {
-    setFeedback("✓ Copied!");
+  if (!code && btn) {
+    // 1. Check parent wrapper / step drawer / code wrapper
+    const wrapper = btn.closest(".code-block-wrapper, .step-io-block, .step-details-drawer, .approval-code-card, .plugin-custom-card, pre");
+    if (wrapper) {
+      const codeEl = wrapper.querySelector("code, pre, textarea");
+      if (codeEl) {
+        code = codeEl.innerText || codeEl.textContent || "";
+      }
+    }
+    // 2. Check siblings or parent container pre/code
+    if (!code) {
+      const parentPre = btn.parentElement ? btn.parentElement.querySelector("pre code, pre, code") : null;
+      if (parentPre) {
+        code = parentPre.innerText || parentPre.textContent || "";
+      }
+    }
   }
+
+  window.universalCopyText(code, btn, "✓ Copied!", "📋 Copy");
 };
 
 window.copyPromptText = function (btn) {
@@ -9741,7 +9973,8 @@ window.copyPromptText = function (btn) {
   const svg = btn.querySelector("svg");
   const origLabel = label ? label.textContent : "Copy";
 
-  const setSuccess = () => {
+  window.universalCopyText(text, null).then((ok) => {
+    if (!ok) return;
     btn.classList.add("copied");
     if (label) label.textContent = "Copied!";
     if (svg) {
@@ -9757,16 +9990,7 @@ window.copyPromptText = function (btn) {
         `;
       }
     }, 2000);
-  };
-
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard
-      .writeText(text)
-      .then(setSuccess)
-      .catch(setSuccess);
-  } else {
-    setSuccess();
-  }
+  });
 };
 
 // ─── Knowledge Base Manager ─────────────────────────────────────────
@@ -10482,26 +10706,94 @@ btnReset.addEventListener("click", async () => {
   }
 });
 
-function cleanAllSpinners(blockElement) {
+function isConnectionOrModelError(err, code) {
+  if (
+    code === "NETWORK_ERROR" ||
+    code === "TIMEOUT" ||
+    code === "SERVICE_UNAVAILABLE" ||
+    code === "CONNECTION_ERROR"
+  ) {
+    return true;
+  }
+  if (!err) return false;
+  const msg = (typeof err === "string" ? err : err.message || JSON.stringify(err)).toLowerCase();
+  return (
+    msg.includes("connection error") ||
+    msg.includes("connection refused") ||
+    msg.includes("econnrefused") ||
+    msg.includes("econnreset") ||
+    msg.includes("enotfound") ||
+    msg.includes("etimedout") ||
+    msg.includes("fetch failed") ||
+    msg.includes("failed to fetch") ||
+    msg.includes("network error") ||
+    msg.includes("err_network") ||
+    msg.includes("err_connection") ||
+    msg.includes("socket hang up") ||
+    msg.includes("not reachable") ||
+    msg.includes("offline") ||
+    msg.includes("not running") ||
+    msg.includes("bad gateway") ||
+    msg.includes("service unavailable") ||
+    msg.includes("model not getting connected") ||
+    msg.includes("model not connected") ||
+    msg.includes("model is unreachable") ||
+    msg.includes("provider is unavailable") ||
+    msg.includes("disconnected") ||
+    msg.includes("502") ||
+    msg.includes("503") ||
+    msg.includes("504")
+  );
+}
+
+function cleanAllSpinners(blockElement, isError = false) {
   if (blockElement) {
+    blockElement.querySelectorAll(".thinking-step-item").forEach((el) => {
+      const statusIcon = el.querySelector(".step-status-icon");
+      if (statusIcon && statusIcon.querySelector(".tool-spinner")) {
+        if (isError) {
+          statusIcon.innerHTML = `<span style="color: var(--danger); font-weight: bold;">❌</span>`;
+          el.classList.remove("running");
+          el.classList.add("error");
+        } else {
+          statusIcon.innerHTML = `<span style="color: var(--success); font-weight: bold;">✓</span>`;
+          el.classList.remove("running");
+          el.classList.add("completed");
+        }
+      }
+    });
     blockElement.querySelectorAll(".tool-spinner").forEach((s) => s.remove());
     blockElement.querySelectorAll(".tool-indicator.running").forEach((el) => {
-      el.className = "tool-indicator stopped";
+      el.className = isError ? "tool-indicator stopped error" : "tool-indicator stopped";
       if (!el.querySelector(".stop-icon")) {
         const stopIcon = document.createElement("span");
         stopIcon.className = "stop-icon";
-        stopIcon.textContent = "⏹️ ";
+        stopIcon.textContent = isError ? "❌ " : "⏹️ ";
         el.prepend(stopIcon);
       }
     });
   } else {
+    document.querySelectorAll(".thinking-step-item").forEach((el) => {
+      const statusIcon = el.querySelector(".step-status-icon");
+      if (statusIcon && statusIcon.querySelector(".tool-spinner")) {
+        if (isError) {
+          statusIcon.innerHTML = `<span style="color: var(--danger); font-weight: bold;">❌</span>`;
+          el.classList.remove("running");
+          el.classList.add("error");
+        } else {
+          statusIcon.innerHTML = `<span style="color: var(--success); font-weight: bold;">✓</span>`;
+          el.classList.remove("running");
+          el.classList.add("completed");
+        }
+      }
+    });
     document.querySelectorAll(".tool-spinner").forEach((s) => s.remove());
     document.querySelectorAll(".tool-indicator.running").forEach((el) => {
-      el.className = "tool-indicator stopped";
+      el.className = isError ? "tool-indicator stopped error" : "tool-indicator stopped";
       if (!el.querySelector(".stop-icon")) {
         const stopIcon = document.createElement("span");
         stopIcon.className = "stop-icon";
-        stopIcon.textContent = "⏹️ ";
+        stopIcon.textContent = isError ? "❌ " : "⏹️ ";
         el.prepend(stopIcon);
       }
     });
@@ -10606,6 +10898,11 @@ async function sendMessage(text) {
   const abortController = new AbortController();
   const { blockElement, thinkingCard, messageBody, toolContainer } = createAssistantMessageBlock();
 
+  // Live thinking disclosure stays hidden until the model is connected and emits thinking/skills/tools
+  if (thinkingCard) {
+    thinkingCard.style.display = "none";
+  }
+
   runningSessions.set(thisSessionId, {
     abortController,
     blockElement,
@@ -10622,7 +10919,7 @@ async function sendMessage(text) {
   if (sessionItemEl && !sessionItemEl.querySelector(".session-running-dot")) {
     const dot = document.createElement("span");
     dot.className = "session-running-dot";
-    dot.title = "Actively reasoning in background...";
+    dot.title = "Connecting to model...";
     const titleSpan = sessionItemEl.querySelector(".session-title-text");
     if (titleSpan) {
       titleSpan.insertAdjacentElement("afterend", dot);
@@ -10690,6 +10987,11 @@ async function sendMessage(text) {
       }
 
       if (eventType === "skills_triggered") {
+        const indicatorLabel = blockElement.querySelector(".assistant-indicator-label");
+        if (indicatorLabel) indicatorLabel.textContent = "Reasoning & processing...";
+        if (sessionItemEl?.querySelector(".session-running-dot")) {
+          sessionItemEl.querySelector(".session-running-dot").title = "Actively reasoning...";
+        }
         if (payload.skills && Array.isArray(payload.skills) && payload.skills.length > 0) {
           renderMessageSkills(blockElement, payload.skills);
           addToolCallout(toolContainer, "cognitive_skills", {
@@ -10699,20 +11001,34 @@ async function sendMessage(text) {
           updateToolCallout(toolContainer, "cognitive_skills", "completed", {
             directivesApplied: payload.skills.map((s) => s.name || s),
           });
+          if (thinkingCard) thinkingCard.style.display = "";
         }
       } else if (eventType === "embedding_start") {
+        const indicatorLabel = blockElement.querySelector(".assistant-indicator-label");
+        if (indicatorLabel) indicatorLabel.textContent = `Embedding ${payload.filename}...`;
         addToolCallout(toolContainer, "vector_embedding", { file: payload.filename }, "running");
+        updateThinkingHeader(thinkingCard, "Embedding attachment...", `Indexing ${payload.filename}`);
+        if (thinkingCard) thinkingCard.style.display = "";
       } else if (eventType === "attachment_embedded") {
         updateToolCallout(toolContainer, "vector_embedding", "completed", { chunks: payload.chunks, embeddingModel: payload.embeddingModel });
         loadKnowledgeBase();
       } else if (eventType === "attachment_error") {
         updateToolCallout(toolContainer, "vector_embedding", "error", { error: payload.error });
       } else if (eventType === "tool_executing") {
+        const indicatorLabel = blockElement.querySelector(".assistant-indicator-label");
+        if (indicatorLabel) indicatorLabel.textContent = `Executing ${payload.tool}...`;
         addToolCallout(toolContainer, payload.tool, payload.args, "running");
+        updateThinkingHeader(thinkingCard, `Executing ${payload.tool}...`, `Running tool: ${payload.tool} • Click to inspect`);
+        if (thinkingCard) thinkingCard.style.display = "";
       } else if (eventType === "approval_required") {
         renderApprovalCard(blockElement, payload, thinkingCard);
+        updateThinkingHeader(thinkingCard, "Approval Required", "Waiting for tool authorization...");
+        if (thinkingCard) thinkingCard.style.display = "";
       } else if (eventType === "tool_completed") {
         updateToolCallout(toolContainer, payload.tool, "completed", payload.result);
+        const indicatorLabel = blockElement.querySelector(".assistant-indicator-label");
+        if (indicatorLabel) indicatorLabel.textContent = "Synthesizing response...";
+        updateThinkingHeader(thinkingCard, "Reasoning & synthesizing...", "Processing tool results • Click to inspect");
         if (payload.tool === "run_sandboxed_script" || payload.tool === "clean_sandbox") {
           loadSandboxFiles();
         }
@@ -10732,6 +11048,7 @@ async function sendMessage(text) {
         dispatchPluginChatUI(blockElement, payload.tool, payload.result);
       } else if (eventType === "tool_error") {
         updateToolCallout(toolContainer, payload.tool, "error", payload.error);
+        updateThinkingHeader(thinkingCard, `Error in ${payload.tool}`, payload.error?.message || "Tool execution error");
       } else if (eventType === "session_title_updated") {
         const sid = payload.sessionId || thisSessionId;
         const newTitle = payload.title;
@@ -10745,6 +11062,16 @@ async function sendMessage(text) {
         }
       } else if (eventType === "response") {
         cleanAllSpinners(blockElement);
+        if (toolContainer) {
+          toolContainer.querySelectorAll(".thinking-step-item").forEach((el) => {
+            const icon = el.querySelector(".step-status-icon");
+            if (icon && icon.querySelector(".tool-spinner")) {
+              icon.innerHTML = `<span style="color: var(--success); font-weight: bold;">✓</span>`;
+              el.classList.remove("running");
+              el.classList.add("completed");
+            }
+          });
+        }
         finalizeThinkingDisclosure(thinkingCard, payload.elapsedMs, payload.usage);
         updateBadgeCounts();
 
@@ -10963,8 +11290,27 @@ async function sendMessage(text) {
         });
       } else if (eventType === "error") {
         blockElement.querySelectorAll(".implement-plan-btn").forEach(button => button.remove());
-        cleanAllSpinners(blockElement);
-        messageBody.innerHTML = `<div style="color: var(--danger); font-weight: 500;">❌ Error: ${escapeHtml(String(payload.error || "An unexpected error occurred."))}</div>`;
+        cleanAllSpinners(blockElement, true);
+        if (thinkingCard) {
+          thinkingCard.style.display = "none";
+        }
+        if (toolContainer) {
+          toolContainer.innerHTML = "";
+        }
+        const isConn = isConnectionOrModelError(payload.error, payload.code);
+        const errTitle = isConn ? "Connection Error" : "Error";
+        const errMsg = typeof payload.error === "string"
+          ? payload.error
+          : (payload.error?.message || JSON.stringify(payload.error) || "An unexpected error occurred.");
+        messageBody.innerHTML = `
+          <div style="color: var(--danger); font-weight: 500; background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: var(--radius-sm); padding: 10px 14px;">
+            <div style="font-weight: 700; margin-bottom: 3px; display: flex; align-items: center; gap: 6px;">
+              <span>❌</span> <span>${errTitle}</span>
+            </div>
+            <div style="font-size: 12.5px; line-height: 1.4; color: var(--text-muted);">${escapeHtml(errMsg)}</div>
+            ${isConn ? `<div style="font-size: 11px; margin-top: 6px; color: var(--text-dim); font-style: italic;">Could not connect to the model or runtime endpoint. Reasoning did not start. Please verify your provider or local server (e.g. Ollama, LM Studio) is running.</div>` : ""}
+          </div>
+        `;
         scrollToBottom();
       }
     };
@@ -10990,8 +11336,15 @@ async function sendMessage(text) {
       processSSEBlock(buffer);
     }
   } catch (err) {
+    turnFailed = true;
     blockElement.querySelectorAll(".implement-plan-btn").forEach(button => button.remove());
-    cleanAllSpinners(blockElement);
+    cleanAllSpinners(blockElement, true);
+    if (thinkingCard) {
+      thinkingCard.style.display = "none";
+    }
+    if (toolContainer) {
+      toolContainer.innerHTML = "";
+    }
     if (err.name === "AbortError") {
       const existingText = messageBody.innerText.trim();
       if (!existingText) {
@@ -11000,10 +11353,20 @@ async function sendMessage(text) {
         messageBody.innerHTML += `<div style="color: var(--text-dim); margin-top: 8px; font-style: italic;">⏹️ Process stopped safely by user.</div>`;
       }
     } else {
-      messageBody.innerHTML = `<div style="color: var(--danger); font-weight: 500;">❌ Network Error: ${escapeHtml(String(err.message))}</div>`;
+      const isConn = isConnectionOrModelError(err.message, err.code);
+      const errTitle = isConn ? "Connection Error" : "Network Error";
+      messageBody.innerHTML = `
+        <div style="color: var(--danger); font-weight: 500; background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: var(--radius-sm); padding: 10px 14px;">
+          <div style="font-weight: 700; margin-bottom: 3px; display: flex; align-items: center; gap: 6px;">
+            <span>❌</span> <span>${errTitle}</span>
+          </div>
+          <div style="font-size: 12.5px; line-height: 1.4; color: var(--text-muted);">${escapeHtml(String(err.message))}</div>
+          ${isConn ? `<div style="font-size: 11px; margin-top: 6px; color: var(--text-dim); font-style: italic;">Could not connect to the model or runtime endpoint. Reasoning did not start. Please verify your provider or local server (e.g. Ollama, LM Studio) is running.</div>` : ""}
+        </div>
+      `;
     }
   } finally {
-    cleanAllSpinners(blockElement);
+    cleanAllSpinners(blockElement, turnFailed);
     runningSessions.delete(thisSessionId);
     updateDockControlsForSession(currentSessionId);
     updateGlobalRunningIndicators();
@@ -11216,7 +11579,9 @@ function isThinkingInspectorActive() {
   if (currentThinkingLevel === "off") return false;
 
   // Fully generic: match ANY active plugin that provides reasoning, scratchpad, CoT, or planning steps
-  return (registeredPlugins || []).some((p) => {
+  if (!registeredPlugins || registeredPlugins.length === 0) return true;
+
+  return registeredPlugins.some((p) => {
     if (!p.enabled) return false;
     if (p.category === "reasoning" || p.category === "thinking" || p.category === "inspector") return true;
     if (p.id && (p.id.includes("thinking") || p.id.includes("reasoning") || p.id.includes("scratchpad"))) return true;
@@ -11237,6 +11602,21 @@ function isThinkingInspectorActive() {
     }
     return false;
   });
+}
+
+function updateThinkingHeader(cardElement, title, subMeta) {
+  if (!cardElement) return;
+  const titleEl = cardElement.querySelector(".thinking-main-title");
+  const metaEl = cardElement.querySelector(".thinking-sub-meta");
+  const countBadge = cardElement.querySelector(".thinking-step-count-badge");
+  const timeline = cardElement.querySelector(".thinking-steps-timeline");
+
+  if (titleEl && title) titleEl.textContent = title;
+  if (metaEl && subMeta) metaEl.textContent = subMeta;
+  if (countBadge && timeline) {
+    const allSteps = timeline.querySelectorAll(".thinking-step-item");
+    countBadge.textContent = `${allSteps.length} step${allSteps.length === 1 ? "" : "s"}`;
+  }
 }
 
 function createAssistantMessageBlock() {
@@ -11262,7 +11642,7 @@ function createAssistantMessageBlock() {
     ${
       useThinkingTimeline
         ? `
-      <!-- Collapsible / Expandable Thinking & Execution Steps Component (Hidden by default until a step actually begins) -->
+      <!-- Collapsible / Expandable Thinking & Execution Steps Component -->
       <div class="thinking-disclosure-card running" style="display: none;">
         <div class="thinking-disclosure-header" title="Click to expand/collapse execution steps">
           <div class="thinking-header-left">
@@ -11270,12 +11650,13 @@ function createAssistantMessageBlock() {
               <span class="thinking-brain-icon">🧠</span>
             </div>
             <div class="thinking-title-group">
-              <span class="thinking-main-title">Thinking & executing steps...</span>
-              <span class="thinking-sub-meta">Live Execution Trace</span>
+              <span class="thinking-main-title">Reasoning & processing...</span>
+              <span class="thinking-sub-meta">Live Execution Trace • Click to inspect</span>
             </div>
           </div>
           <div class="thinking-header-right">
-            <span class="thinking-step-count-badge">0 steps</span>
+            <button type="button" class="btn btn-secondary btn-xs thinking-copy-trace-btn" style="display: none; padding: 2px 7px; font-size: 11px; margin-right: 4px;" title="Copy entire reasoning chain as Markdown">📋 Copy Trace</button>
+            <span class="thinking-step-count-badge">Processing</span>
             <span class="thinking-chevron">▾</span>
           </div>
         </div>
@@ -11293,7 +11674,7 @@ function createAssistantMessageBlock() {
     <div class="message-body">
       <div class="assistant-thinking-indicator" style="display: flex; align-items: center; gap: 8px; color: var(--text-muted); font-size: 13px; padding: 4px 0;">
         <div class="tool-spinner" style="width: 14px; height: 14px; border-width: 2px;"></div>
-        <span>${useThinkingTimeline ? "Reasoning & processing..." : "Processing..."}</span>
+        <span class="assistant-indicator-label">Connecting to model...</span>
       </div>
     </div>
   `;
@@ -11310,6 +11691,13 @@ function createAssistantMessageBlock() {
     thinkingHeader.addEventListener("click", () => {
       thinkingCard.classList.toggle("expanded");
     });
+    const copyTraceBtn = thinkingHeader.querySelector(".thinking-copy-trace-btn");
+    if (copyTraceBtn) {
+      copyTraceBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        copyThinkingTrace(thinkingCard, copyTraceBtn);
+      });
+    }
   }
 
   const ttsBtn = block.querySelector(".message-tts-btn");
@@ -11345,6 +11733,27 @@ function getToolDisplayMeta(toolName, args) {
   }
 
   // 2. Dedicated Reasoning Scratchpad & Thinking Step Inspector
+  if (toolName === "context_reasoning") {
+    icon = "🔍";
+    title = "Context & Memory Analysis";
+    summary = args?.phase || "Analyzing prompt and recalling relevant session memory";
+    return { icon, title, summary };
+  }
+
+  if (toolName === "llm_reasoning") {
+    icon = "⚡";
+    title = "Cognitive Reasoning & Plan";
+    summary = args?.phase || "Model synthesizing hypothesis, plan, and solution";
+    return { icon, title, summary };
+  }
+
+  if (toolName === "vector_embedding") {
+    icon = "📥";
+    title = "Vector Memory Ingestion";
+    summary = args?.file ? `Embedding attachment: "${args.file}"` : "Indexing vector embeddings";
+    return { icon, title, summary };
+  }
+
   if (toolName === "cognitive_skills" || toolName === "skills_triggered") {
     icon = "🧠";
     title = "Cognitive Directives";
@@ -11358,10 +11767,21 @@ function getToolDisplayMeta(toolName, args) {
 
   if (toolName === "record_thinking" || toolName === "record_reasoning_step") {
     icon = "🧠";
-    title = args?.step_number ? `Thinking Step ${args.step_number}` : "Internal Reasoning Step";
+    const stage = args?.cognitive_stage;
+    const stageMeta = getCognitiveStageMeta(stage);
+    title = args?.step_number
+      ? `Thinking Step ${args.step_number}${stageMeta ? ` (${stageMeta.label})` : ""}`
+      : (stageMeta ? `Reasoning: ${stageMeta.label}` : "Internal Reasoning Step");
     summary = args?.thought ? String(args.thought) : (args?.action_plan ? String(args.action_plan) : "Analyzing & structuring plan...");
     if (summary.length > 85) summary = summary.slice(0, 85) + "...";
-    return { icon, title, summary };
+    return {
+      icon: stageMeta ? stageMeta.icon : icon,
+      title,
+      summary,
+      cognitiveStage: stage,
+      confidence: args?.confidence,
+      confidenceRationale: args?.confidence_rationale,
+    };
   }
 
   // 3. Dynamic summary extraction from parameters
@@ -11402,6 +11822,205 @@ function getToolDisplayMeta(toolName, args) {
   return { icon, title, summary };
 }
 
+// ─── Cognitive Meta-Reasoning Traces Helpers ────────────────────────
+
+function getCognitiveStageMeta(stage) {
+  switch (stage) {
+    case "hypothesis":
+      return { label: "Hypothesis", icon: "💡", className: "cog-stage-hypothesis" };
+    case "alternatives":
+      return { label: "Alternatives", icon: "⚖️", className: "cog-stage-alternatives" };
+    case "assumption":
+      return { label: "Premise", icon: "📌", className: "cog-stage-assumption" };
+    case "self_correction":
+      return { label: "Pivot", icon: "🔄", className: "cog-stage-self_correction" };
+    case "verification":
+      return { label: "Verification", icon: "🎯", className: "cog-stage-verification" };
+    case "action_plan":
+      return { label: "Action Plan", icon: "⚡", className: "cog-stage-action_plan" };
+    case "analysis":
+      return { label: "Analysis", icon: "🔍", className: "cog-stage-analysis" };
+    default:
+      return null;
+  }
+}
+
+function renderCognitiveTraceDrawer(data, prettyArgs) {
+  const thought = data.thought || data.analysis || "";
+  const confidence = data.confidence;
+  const confidenceRationale = data.confidence_rationale;
+  const assumptions = Array.isArray(data.assumptions) ? data.assumptions : [];
+  const alternatives = Array.isArray(data.alternatives_considered) ? data.alternatives_considered : [];
+  const selfCorrection = data.self_correction;
+  const expectedOutcome = data.expected_outcome;
+  const actionPlan = data.action_plan;
+
+  let html = `<div class="cognitive-trace-view">`;
+
+  // 1. Cognitive Monologue & Thought
+  if (thought) {
+    html += `
+      <div class="cog-panel-block">
+        <div class="cog-panel-title">
+          <span>🧠 Cognitive Analysis</span>
+          ${confidence ? `<span class="cog-confidence-badge cog-conf-${confidence}">${confidence === "high" ? "● High Confidence" : confidence === "medium" ? "◐ Medium Confidence" : "○ Low Confidence"}</span>` : ""}
+        </div>
+        <div class="cog-thought-body">${escapeHtmlStr(thought)}</div>
+        ${confidenceRationale ? `<div style="font-size: 11px; color: var(--text-dim); margin-top: 5px; font-style: italic;">Rationale: ${escapeHtmlStr(confidenceRationale)}</div>` : ""}
+      </div>
+    `;
+  }
+
+  // 2. Alternatives Considered & Trade-offs
+  if (alternatives.length > 0) {
+    html += `
+      <div class="cog-panel-block">
+        <div class="cog-panel-title">
+          <span>⚖️ Evaluated Alternatives & Trade-offs</span>
+        </div>
+        <div class="cog-alternatives-grid">
+    `;
+    for (const alt of alternatives) {
+      if (typeof alt === "string") {
+        html += `
+          <div class="cog-alt-card">
+            <div class="cog-alt-header"><span>${escapeHtmlStr(alt)}</span></div>
+          </div>
+        `;
+      } else if (alt && typeof alt === "object") {
+        const isSelected = Boolean(alt.selected);
+        html += `
+          <div class="cog-alt-card ${isSelected ? "selected" : ""}">
+            <div class="cog-alt-header">
+              <span>${escapeHtmlStr(alt.option || "Option")}</span>
+              <span class="cog-alt-pill ${isSelected ? "selected" : "discarded"}">${isSelected ? "Chosen Approach" : "Discarded"}</span>
+            </div>
+            ${alt.evaluated_tradeoff ? `<div class="cog-alt-body"><strong>Trade-off:</strong> ${escapeHtmlStr(alt.evaluated_tradeoff)}</div>` : ""}
+            ${alt.discarded_reason ? `<div class="cog-alt-body" style="color: #f87171;"><strong>Discard Rationale:</strong> ${escapeHtmlStr(alt.discarded_reason)}</div>` : ""}
+          </div>
+        `;
+      }
+    }
+    html += `</div></div>`;
+  }
+
+  // 3. Assumptions & Premises Tracker
+  if (assumptions.length > 0) {
+    html += `
+      <div class="cog-panel-block">
+        <div class="cog-panel-title">
+          <span>📌 Preconditions & Assumptions Tracked</span>
+        </div>
+        <ul class="cog-assumptions-list">
+    `;
+    for (const asm of assumptions) {
+      html += `<li class="cog-assumption-chip"><span>✓</span> <span>${escapeHtmlStr(asm)}</span></li>`;
+    }
+    html += `</ul></div>`;
+  }
+
+  // 4. Self-Correction & Pivot Callout
+  if (selfCorrection) {
+    const trigger = typeof selfCorrection === "object" ? selfCorrection.trigger : null;
+    const prevHyp = typeof selfCorrection === "object" ? selfCorrection.previous_hypothesis : null;
+    const strategy = typeof selfCorrection === "object" ? selfCorrection.pivot_strategy : String(selfCorrection);
+
+    html += `
+      <div class="cog-panel-block cog-self-correction-callout">
+        <div class="cog-panel-title" style="color: #fbbf24;">
+          <span>🔄 Cognitive Pivot & Self-Correction</span>
+        </div>
+        ${trigger ? `<div style="font-size: 11px; margin-bottom: 3px;"><strong>Trigger / Failure:</strong> ${escapeHtmlStr(trigger)}</div>` : ""}
+        ${prevHyp ? `<div style="font-size: 11px; margin-bottom: 3px; color: var(--text-dim);"><strong>Previous Belief:</strong> ${escapeHtmlStr(prevHyp)}</div>` : ""}
+        ${strategy ? `<div style="font-size: 11.5px; color: var(--text-main); font-weight: 500;"><strong>Revised Strategy:</strong> ${escapeHtmlStr(strategy)}</div>` : ""}
+      </div>
+    `;
+  }
+
+  // 5. Expected Outcome & Next Action Plan
+  if (expectedOutcome || actionPlan) {
+    html += `
+      <div class="cog-panel-block">
+        ${expectedOutcome ? `
+          <div style="margin-bottom: ${actionPlan ? "6px" : "0"};">
+            <div class="cog-panel-title">🎯 Anticipated Outcome</div>
+            <div style="font-size: 11.5px; color: var(--text-muted);">${escapeHtmlStr(expectedOutcome)}</div>
+          </div>
+        ` : ""}
+        ${actionPlan ? `
+          <div>
+            <div class="cog-panel-title">⚡ Action Plan / Target Tool</div>
+            <div style="font-size: 11.5px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace;">${escapeHtmlStr(actionPlan)}</div>
+          </div>
+        ` : ""}
+      </div>
+    `;
+  }
+
+  // Raw Diagnostic Block
+  html += `
+    <details class="cog-raw-toggle">
+      <summary>View Raw JSON Telemetry</summary>
+      <pre class="step-code-box"><code>${escapeHtmlStr(prettyArgs)}</code></pre>
+    </details>
+  </div>`;
+
+  return html;
+}
+
+function copyThinkingTrace(cardElement, btn) {
+  if (!cardElement) return;
+  const steps = cardElement.querySelectorAll(".thinking-step-item");
+  if (!steps.length) return;
+
+  let md = `### AI Reasoning & Execution Trace\n\n`;
+  steps.forEach((step, idx) => {
+    const title = step.querySelector(".step-tool-name")?.textContent?.trim() || `Step ${idx + 1}`;
+    const status = step.classList.contains("completed") ? "✓ Succeeded" : step.classList.contains("error") ? "❌ Failed" : "Finished";
+    const stageBadge = step.querySelector(".cog-stage-badge")?.textContent?.trim() || "";
+    const confBadge = step.querySelector(".cog-confidence-badge")?.textContent?.trim() || "";
+
+    md += `#### ${idx + 1}. ${title} [${status}]\n`;
+    if (stageBadge) md += `- **Cognitive Stage:** ${stageBadge}\n`;
+    if (confBadge) md += `- **Confidence:** ${confBadge}\n`;
+
+    const args = step._stepArgs;
+    if (args) {
+      if (args.thought) md += `- **Analysis:** ${args.thought}\n`;
+      if (args.assumptions && args.assumptions.length) md += `- **Assumptions:** ${args.assumptions.join(", ")}\n`;
+      if (args.alternatives_considered && args.alternatives_considered.length) {
+        md += `- **Alternatives Considered:**\n`;
+        args.alternatives_considered.forEach((alt) => {
+          if (typeof alt === "string") md += `  - ${alt}\n`;
+          else md += `  - ${alt.option}${alt.selected ? " (Chosen)" : " (Discarded)"}: ${alt.evaluated_tradeoff || ""}\n`;
+        });
+      }
+      if (args.self_correction) {
+        const sc = typeof args.self_correction === "object" ? args.self_correction.pivot_strategy || JSON.stringify(args.self_correction) : args.self_correction;
+        md += `- **Pivot / Self-Correction:** ${sc}\n`;
+      }
+      if (args.expected_outcome) md += `- **Anticipated Outcome:** ${args.expected_outcome}\n`;
+      if (args.action_plan) md += `- **Action Plan:** ${args.action_plan}\n`;
+    }
+    md += `\n`;
+  });
+
+  navigator.clipboard.writeText(md.trim()).then(() => {
+    if (btn) {
+      const orig = btn.innerHTML;
+      btn.innerHTML = `✓ Copied!`;
+      setTimeout(() => { btn.innerHTML = orig; }, 1800);
+    }
+    if (typeof showToast === "function") {
+      showToast("Reasoning trace copied to clipboard", "info");
+    }
+  }).catch(() => {
+    if (typeof showToast === "function") {
+      showToast("Failed to copy trace to clipboard", "error");
+    }
+  });
+}
+
 function addToolCallout(container, toolName, args, status) {
   if (!container) return;
   const isTimeline = container.classList.contains("thinking-steps-timeline");
@@ -11412,28 +12031,53 @@ function addToolCallout(container, toolName, args, status) {
     item.className = "thinking-step-item";
     item.id = stepId;
     item.dataset.tool = toolName;
+    item._stepArgs = args;
+    item._stepTool = toolName;
 
-    const { icon, title, summary } = getToolDisplayMeta(toolName, args);
+    const toolMeta = getToolDisplayMeta(toolName, args);
     const prettyArgs = args ? JSON.stringify(args, null, 2) : "None";
+
+    const stageMeta = toolMeta.cognitiveStage ? getCognitiveStageMeta(toolMeta.cognitiveStage) : null;
+    const stageHtml = stageMeta
+      ? `<span class="cog-stage-badge ${stageMeta.className}">${stageMeta.icon} ${escapeHtmlStr(stageMeta.label)}</span>`
+      : "";
+    const confHtml = toolMeta.confidence
+      ? `<span class="cog-confidence-badge cog-conf-${toolMeta.confidence}" title="${escapeHtmlStr(toolMeta.confidenceRationale || `Confidence: ${toolMeta.confidence}`)}">${toolMeta.confidence === "high" ? "● High" : toolMeta.confidence === "medium" ? "◐ Med" : "○ Low"}</span>`
+      : "";
+
+    const isCognitive = toolName === "record_thinking" || toolName === "record_reasoning_step";
+    const initialDrawerHtml = isCognitive && args
+      ? renderCognitiveTraceDrawer(args, prettyArgs)
+      : `
+        <div class="step-io-block">
+          <div class="step-io-title">
+            <span>Input Parameters</span>
+            <button type="button" class="copy-btn step-copy-btn" onclick="copyCode(this)" title="Copy parameters">📋 Copy</button>
+          </div>
+          <pre class="step-code-box"><code>${escapeHtmlStr(prettyArgs)}</code></pre>
+        </div>
+        <div class="step-io-block step-output-block" style="display: none;">
+          <div class="step-io-title">
+            <span>Execution Result</span>
+            <button type="button" class="copy-btn step-copy-btn" onclick="copyCode(this)" title="Copy execution result">📋 Copy</button>
+          </div>
+          <pre class="step-code-box"><code class="step-output-code"></code></pre>
+        </div>
+      `;
 
     item.innerHTML = `
       <div class="thinking-step-row" title="Click to expand step details">
         <div class="step-info-left">
           <span class="step-status-icon"><span class="tool-spinner"></span></span>
-          <span class="step-tool-name">${renderPluginIcon(icon, 16)} ${escapeHtmlStr(title)}</span>
-          <span class="step-summary-text">${escapeHtmlStr(summary)}</span>
+          <span class="step-tool-name">${renderPluginIcon(toolMeta.icon, 16)} ${escapeHtmlStr(toolMeta.title)}</span>
+          ${stageHtml}
+          ${confHtml}
+          <span class="step-summary-text">${escapeHtmlStr(toolMeta.summary)}</span>
         </div>
         <span class="step-expand-hint">Inspect ▾</span>
       </div>
       <div class="step-details-drawer">
-        <div class="step-io-block">
-          <div class="step-io-title">Input Parameters</div>
-          <pre class="step-code-box"><code>${escapeHtmlStr(prettyArgs)}</code></pre>
-        </div>
-        <div class="step-io-block step-output-block" style="display: none;">
-          <div class="step-io-title">Execution Result</div>
-          <pre class="step-code-box"><code class="step-output-code"></code></pre>
-        </div>
+        ${initialDrawerHtml}
       </div>
     `;
 
@@ -11449,7 +12093,7 @@ function addToolCallout(container, toolName, args, status) {
 
     const card = container.closest(".thinking-disclosure-card");
     if (card) {
-      card.style.display = ""; // Reveal only when actual tool step is executing
+      card.style.display = "";
       const allSteps = container.querySelectorAll(".thinking-step-item");
       const countBadge = card.querySelector(".thinking-step-count-badge");
       if (countBadge) {
@@ -11497,11 +12141,17 @@ function updateToolCallout(container, toolName, status, resultOrError) {
     const element = elements[elements.length - 1];
     if (!element) return;
 
+    element._stepResult = resultOrError;
+
     const statusIcon = element.querySelector(".step-status-icon");
     if (statusIcon) {
       if (status === "completed") {
+        element.classList.remove("running");
+        element.classList.add("completed");
         statusIcon.innerHTML = `<span style="color: var(--success); font-weight: bold;">✓</span>`;
       } else if (status === "error") {
+        element.classList.remove("running");
+        element.classList.add("error");
         statusIcon.innerHTML = `<span style="color: var(--danger); font-weight: bold;">❌</span>`;
       } else {
         statusIcon.innerHTML = `<span style="color: var(--text-dim);">⏹️</span>`;
@@ -11509,14 +12159,40 @@ function updateToolCallout(container, toolName, status, resultOrError) {
     }
 
     if (resultOrError !== undefined) {
-      const outputBlock = element.querySelector(".step-output-block");
-      const outputCode = element.querySelector(".step-output-code");
-      if (outputBlock && outputCode) {
-        outputBlock.style.display = "block";
-        const formatted = typeof resultOrError === "object"
-          ? JSON.stringify(resultOrError, null, 2)
-          : String(resultOrError);
-        outputCode.textContent = formatted;
+      const isCognitive = toolName === "record_thinking" || toolName === "record_reasoning_step" || (resultOrError && resultOrError.ui_type === "reasoning_step");
+      const drawer = element.querySelector(".step-details-drawer");
+
+      if (isCognitive && drawer) {
+        const mergedData = Object.assign({}, element._stepArgs || {}, typeof resultOrError === "object" ? resultOrError : {});
+        const prettyArgs = element._stepArgs ? JSON.stringify(element._stepArgs, null, 2) : "None";
+        drawer.innerHTML = renderCognitiveTraceDrawer(mergedData, prettyArgs);
+
+        // Update stage & confidence badges if newly returned
+        const leftInfo = element.querySelector(".step-info-left");
+        if (leftInfo && mergedData.cognitive_stage && !leftInfo.querySelector(".cog-stage-badge")) {
+          const stageMeta = getCognitiveStageMeta(mergedData.cognitive_stage);
+          if (stageMeta) {
+            const badgeSpan = document.createElement("span");
+            badgeSpan.className = `cog-stage-badge ${stageMeta.className}`;
+            badgeSpan.innerHTML = `${stageMeta.icon} ${escapeHtmlStr(stageMeta.label)}`;
+            const toolNameEl = leftInfo.querySelector(".step-tool-name");
+            if (toolNameEl && toolNameEl.nextSibling) {
+              leftInfo.insertBefore(badgeSpan, toolNameEl.nextSibling);
+            } else {
+              leftInfo.appendChild(badgeSpan);
+            }
+          }
+        }
+      } else {
+        const outputBlock = element.querySelector(".step-output-block");
+        const outputCode = element.querySelector(".step-output-code");
+        if (outputBlock && outputCode) {
+          outputBlock.style.display = "block";
+          const formatted = typeof resultOrError === "object"
+            ? JSON.stringify(resultOrError, null, 2)
+            : String(resultOrError);
+          outputCode.textContent = formatted;
+        }
       }
     }
   } else {
@@ -11551,11 +12227,22 @@ function finalizeThinkingDisclosure(cardElement, elapsedMs, usage) {
   const titleEl = cardElement.querySelector(".thinking-main-title");
   const metaEl = cardElement.querySelector(".thinking-sub-meta");
   const brainIcon = cardElement.querySelector(".thinking-brain-icon");
+  const countBadge = cardElement.querySelector(".thinking-step-count-badge");
+  const copyTraceBtn = cardElement.querySelector(".thinking-copy-trace-btn");
 
   if (brainIcon) brainIcon.textContent = "⚡";
 
   if (titleEl) {
     titleEl.textContent = stepCount > 0 ? "Reasoning & Execution Trace" : "Direct AI Reasoning";
+  }
+
+  if (countBadge) {
+    countBadge.textContent = `${stepCount} step${stepCount === 1 ? "" : "s"}`;
+    countBadge.style.color = "var(--success)";
+  }
+
+  if (copyTraceBtn && stepCount > 0) {
+    copyTraceBtn.style.display = "inline-flex";
   }
 
   if (metaEl) {
@@ -11911,6 +12598,22 @@ async function renderSessionMessages(messages) {
       }
     }
   }
+
+  // Restore any persisted outcome summary cards for this session across tab/session switches
+  try {
+    const sid = currentSessionId || localStorage.getItem("ai_plate_active_session") || "default";
+    const storeKey = `ai_plate_session_outcomes_${sid}`;
+    const stored = JSON.parse(localStorage.getItem(storeKey) || "[]");
+    if (Array.isArray(stored) && stored.length > 0 && typeof window.renderOutcomeSummaryCard === "function") {
+      const assistantBlocks = chatMessages.querySelectorAll(".message-author-assistant");
+      if (assistantBlocks.length > 0) {
+        const lastBlock = assistantBlocks[assistantBlocks.length - 1];
+        const latestOutcome = stored[stored.length - 1];
+        window.renderOutcomeSummaryCard(lastBlock, latestOutcome);
+      }
+    }
+  } catch (err) {}
+
   scrollToBottom(true);
 }
 

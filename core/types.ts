@@ -15,6 +15,8 @@ export interface ToolParametersSchema {
     description: string;
     enum?: string[];
     items?: Record<string, any> | { type: string };
+    properties?: Record<string, any>;
+    required?: string[];
   }>;
   required?: string[];
 }

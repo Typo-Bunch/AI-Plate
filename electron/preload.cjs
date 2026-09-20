@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require("electron");
+const { contextBridge, ipcRenderer, clipboard } = require("electron");
 
 // Forward IPC stream chunks directly to the window DOM event bus (zero contextBridge callback cloning)
 ipcRenderer.on("chat:stream-chunk", (_event, chunk) => {
@@ -33,6 +33,81 @@ ipcRenderer.on("stt:download-progress", (_event, data) => {
   }
 });
 
+ipcRenderer.on("context-menu:word-definition", (_event, data) => {
+  try {
+    window.dispatchEvent(new CustomEvent("context-menu:word-definition", { detail: data }));
+  } catch (err) {
+    console.error("[Preload] Error dispatching context-menu:word-definition:", err);
+  }
+});
+
+// Synchronously capture right-click target element, cursor word, and screen coordinates before native menu shows
+window.addEventListener("contextmenu", (e) => {
+  try {
+    const target = e.target;
+    const isPromptInput = !!target && (target.id === "user-input" || (typeof target.closest === "function" && !!target.closest("#user-input")));
+
+    let selected = (window.getSelection() ? window.getSelection().toString() : "").trim();
+    let wordUnderCursor = "";
+    let rect = null;
+
+    // If text was selected, capture its bounding box
+    const sel = window.getSelection();
+    if (selected && sel && sel.rangeCount > 0) {
+      try {
+        const r = sel.getRangeAt(0).getBoundingClientRect();
+        if (r && (r.width > 0 || r.height > 0)) {
+          rect = { left: Math.round(r.left), top: Math.round(r.top), right: Math.round(r.right), bottom: Math.round(r.bottom), width: Math.round(r.width), height: Math.round(r.height) };
+        }
+      } catch {}
+    }
+
+    if (!selected) {
+      let range;
+      if (document.caretRangeFromPoint) {
+        range = document.caretRangeFromPoint(e.clientX, e.clientY);
+      } else if (document.caretPositionFromPoint) {
+        const pos = document.caretPositionFromPoint(e.clientX, e.clientY);
+        if (pos && pos.offsetNode) {
+          range = document.createRange();
+          range.setStart(pos.offsetNode, pos.offset);
+          range.collapse(true);
+        }
+      }
+      if (range && range.startContainer && range.startContainer.nodeType === Node.TEXT_NODE) {
+        const text = range.startContainer.textContent || "";
+        const offset = range.startOffset;
+        let start = offset;
+        let end = offset;
+        while (start > 0 && /[\w'-]/.test(text[start - 1])) start--;
+        while (end < text.length && /[\w'-]/.test(text[end])) end++;
+        const candidate = text.slice(start, end).trim().replace(/^['-]+|['-]+$/g, "");
+        if (candidate.length >= 2 && candidate.length <= 45 && /^[a-zA-Z]/.test(candidate)) {
+          wordUnderCursor = candidate;
+          try {
+            const wordRange = document.createRange();
+            wordRange.setStart(range.startContainer, start);
+            wordRange.setEnd(range.startContainer, end);
+            const r = wordRange.getBoundingClientRect();
+            if (r && (r.width > 0 || r.height > 0)) {
+              rect = { left: Math.round(r.left), top: Math.round(r.top), right: Math.round(r.right), bottom: Math.round(r.bottom), width: Math.round(r.width), height: Math.round(r.height) };
+            }
+          } catch {}
+        }
+      }
+    }
+
+    ipcRenderer.send("context-menu:target-info", {
+      isPromptInput,
+      wordUnderCursor: selected || wordUnderCursor,
+      clientX: Math.round(e.clientX),
+      clientY: Math.round(e.clientY),
+      rect,
+    });
+  } catch (err) {
+    console.error("[Preload] Context menu target detection error:", err);
+  }
+}, true);
 
 const api = {
   isDesktop: true,
@@ -59,6 +134,26 @@ const api = {
   openPathExternal: (targetPath) => ipcRenderer.invoke("system-config:open-external", { fileType: "yaml", action: "file", targetPath }),
   showItemInFolder: (targetPath) => ipcRenderer.invoke("system-config:open-external", { fileType: "yaml", action: "folder", targetPath }),
   selectFile: (options) => ipcRenderer.invoke("dialog:select-file", options),
+
+  // Native OS Clipboard (Zero browser permissions failure)
+  clipboard: {
+    writeText: (text) => {
+      try {
+        clipboard.writeText(String(text || ""));
+        return true;
+      } catch (err) {
+        console.error("Clipboard writeText failed:", err);
+        return false;
+      }
+    },
+    readText: () => {
+      try {
+        return clipboard.readText();
+      } catch (err) {
+        return "";
+      }
+    },
+  },
 
   // Chat Streaming & Turn Execution (Pure serializable payloads)
   chat: {
@@ -159,6 +254,7 @@ const api = {
     upload: (payload) => ipcRenderer.invoke("artifacts:upload", payload),
     delete: (name) => ipcRenderer.invoke("artifacts:delete", { name }),
     shareWeb: (name, isSandbox = false) => ipcRenderer.invoke("artifacts:share-web", { name, isSandbox }),
+    openExternal: (name, isSandbox = false, action = "play") => ipcRenderer.invoke("artifacts:open-external", { name, isSandbox, action }),
   },
 
   // Knowledge Base RAG

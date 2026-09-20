@@ -510,6 +510,20 @@ const OUTCOME_JS = `
       blockElement.appendChild(card);
     }
 
+    // Persist outcome summary per session to preserve across tab and session switches
+    try {
+      var sid = window.currentSessionId || localStorage.getItem("ai_plate_active_session") || "default";
+      var storeKey = "ai_plate_session_outcomes_" + sid;
+      var list = JSON.parse(localStorage.getItem(storeKey) || "[]");
+      var exists = list.some(function (item) {
+        return item && (item.id === outcome.id || (item.user_intent === outcome.user_intent && item.what_happened === outcome.what_happened));
+      });
+      if (!exists) {
+        list.push(outcome);
+        localStorage.setItem(storeKey, JSON.stringify(list.slice(-20)));
+      }
+    } catch (e) {}
+
     return true;
   }
 

@@ -83,20 +83,49 @@ function syncNestedSandboxArtifacts(): void {
     const nested = join(SANDBOX_DIR, "artifacts");
     if (existsSync(nested)) {
       if (!existsSync(ARTIFACTS_DIR)) mkdirSync(ARTIFACTS_DIR, { recursive: true });
-      for (const file of readdirSync(nested)) {
-        const src = join(nested, file);
-        const dst = join(ARTIFACTS_DIR, file);
+      // Recursively sync all files from .sandbox/artifacts/ (including subdirs like animations/)
+      syncDirRecursive(nested, ARTIFACTS_DIR);
+    }
+  } catch {}
+}
+
+function syncDirRecursive(srcDir: string, dstDir: string): void {
+  if (!existsSync(srcDir)) return;
+  try {
+    for (const entry of readdirSync(srcDir, { withFileTypes: true })) {
+      const srcPath = join(srcDir, entry.name);
+      if (entry.isFile()) {
+        // Copy to both the matching subdirectory structure AND the flat root for easy discovery
+        const dstPath = join(dstDir, entry.name);
         try {
-          const st = statSync(src);
-          if (st.isFile()) {
-            copyFileSync(src, dst);
-            unlinkSync(src);
+          copyFileSync(srcPath, dstPath);
+        } catch {}
+      } else if (
+        entry.isDirectory() &&
+        entry.name !== "venv" &&
+        entry.name !== "__pycache__" &&
+        entry.name !== ".venv_manim" &&
+        entry.name !== "node_modules"
+      ) {
+        // Recurse into subdirectories
+        const subDstDir = join(dstDir, entry.name);
+        if (!existsSync(subDstDir)) mkdirSync(subDstDir, { recursive: true });
+        syncDirRecursive(srcPath, subDstDir);
+        // Also copy files from subdirectory to root artifacts/ for flat listing
+        try {
+          for (const subEntry of readdirSync(srcPath)) {
+            const subSrc = join(srcPath, subEntry);
+            try {
+              if (statSync(subSrc).isFile()) {
+                const flatDst = join(dstDir, subEntry);
+                if (!existsSync(flatDst)) {
+                  copyFileSync(subSrc, flatDst);
+                }
+              }
+            } catch {}
           }
         } catch {}
       }
-      try {
-        rmdirSync(nested);
-      } catch {}
     }
   } catch {}
 }
@@ -1038,27 +1067,39 @@ export function setupIpcBridge(mainWindow: BrowserWindow): void {
   safeHandle("artifacts:list", () => {
     syncNestedSandboxArtifacts();
     const fileMap = new Map<string, any>();
-    if (existsSync(ARTIFACTS_DIR)) {
-      for (const file of readdirSync(ARTIFACTS_DIR)) {
-        const full = join(ARTIFACTS_DIR, file);
-        try {
-          const st = statSync(full);
-          if (st.isFile()) {
-            const ext = extname(file).toLowerCase();
-            fileMap.set(file, {
-              name: file,
-              sizeBytes: st.size,
-              modifiedAt: st.mtime.toISOString(),
-              isImage: [".png", ".jpg", ".jpeg", ".svg", ".gif", ".webp"].includes(ext),
-              isVideo: [".mp4", ".webm", ".ogg", ".mov", ".mkv", ".avi", ".m4v"].includes(ext),
-              isAudio: [".mp3", ".wav", ".ogg", ".m4a", ".aac", ".flac"].includes(ext),
-              isCode: [".py", ".js", ".ts", ".json", ".csv", ".txt", ".md"].includes(ext),
-              ext,
-            });
+
+    function scanArtifactDir(dir: string, depth = 0): void {
+      if (!existsSync(dir) || depth > 3) return;
+      try {
+        for (const entry of readdirSync(dir, { withFileTypes: true })) {
+          if (entry.name.startsWith(".") || entry.name === "venv" || entry.name === "__pycache__" || entry.name === "node_modules") continue;
+          const full = join(dir, entry.name);
+          if (entry.isFile()) {
+            const ext = extname(entry.name).toLowerCase();
+            // Use basename as the key to avoid duplicates (flat copies vs subdirectory originals)
+            if (!fileMap.has(entry.name)) {
+              try {
+                const st = statSync(full);
+                fileMap.set(entry.name, {
+                  name: entry.name,
+                  sizeBytes: st.size,
+                  modifiedAt: st.mtime.toISOString(),
+                  isImage: [".png", ".jpg", ".jpeg", ".svg", ".gif", ".webp", ".bmp"].includes(ext),
+                  isVideo: [".mp4", ".webm", ".ogg", ".mov", ".mkv", ".avi", ".m4v"].includes(ext),
+                  isAudio: [".mp3", ".wav", ".ogg", ".m4a", ".aac", ".flac"].includes(ext),
+                  isCode: [".py", ".js", ".ts", ".json", ".csv", ".txt", ".md", ".html", ".sh", ".bat", ".yaml", ".yml"].includes(ext),
+                  ext,
+                });
+              } catch {}
+            }
+          } else if (entry.isDirectory()) {
+            scanArtifactDir(full, depth + 1);
           }
-        } catch {}
-      }
+        }
+      } catch {}
     }
+
+    scanArtifactDir(ARTIFACTS_DIR);
     return { artifactsDir: ARTIFACTS_DIR, files: Array.from(fileMap.values()) };
   });
 
@@ -1079,8 +1120,41 @@ export function setupIpcBridge(mainWindow: BrowserWindow): void {
   safeHandle("artifacts:get-file", (_event, payload: { name: string }) => {
     if (!payload?.name) throw validationError("Artifact name is required");
     const cleanName = (payload.name || "").replace(/^[/\\]+/, "").split(/[/\\]/).pop() || payload.name;
-    const targetPath = join(ARTIFACTS_DIR, cleanName);
-    if (existsSync(targetPath)) {
+
+    // Search in ARTIFACTS_DIR root first, then recursively in subdirectories
+    function findArtifactFile(name: string): string | null {
+      const direct = join(ARTIFACTS_DIR, name);
+      if (existsSync(direct)) return direct;
+      // Recursive search in subdirectories (animations/, videos/, etc.)
+      if (existsSync(ARTIFACTS_DIR)) {
+        try {
+          for (const entry of readdirSync(ARTIFACTS_DIR, { withFileTypes: true })) {
+            if (entry.isDirectory() && !entry.name.startsWith(".")) {
+              const subPath = join(ARTIFACTS_DIR, entry.name, name);
+              if (existsSync(subPath)) return subPath;
+            }
+          }
+        } catch {}
+      }
+      // Also check sandbox artifacts
+      const sandboxArtifacts = join(SANDBOX_DIR, "artifacts");
+      if (existsSync(sandboxArtifacts)) {
+        const sbDirect = join(sandboxArtifacts, name);
+        if (existsSync(sbDirect)) return sbDirect;
+        try {
+          for (const entry of readdirSync(sandboxArtifacts, { withFileTypes: true })) {
+            if (entry.isDirectory() && !entry.name.startsWith(".")) {
+              const subPath = join(sandboxArtifacts, entry.name, name);
+              if (existsSync(subPath)) return subPath;
+            }
+          }
+        } catch {}
+      }
+      return null;
+    }
+
+    const targetPath = findArtifactFile(cleanName);
+    if (targetPath) {
       const buf = readFileSync(targetPath);
       const ext = extname(cleanName).toLowerCase();
       const mimeMap: Record<string, string> = {
@@ -1122,6 +1196,57 @@ export function setupIpcBridge(mainWindow: BrowserWindow): void {
       };
     }
     return { exists: false, filename: cleanName };
+  });
+
+  safeHandle("artifacts:open-external", (_event, payload: { name: string; isSandbox?: boolean; action?: "play" | "folder" }) => {
+    if (!payload?.name) throw validationError("Artifact name is required");
+    const cleanName = (payload.name || "").replace(/^[/\\]+/, "").split(/[/\\]/).pop() || payload.name;
+    const baseDir = payload.isSandbox ? SANDBOX_DIR : ARTIFACTS_DIR;
+
+    // Search for the file in root and common subdirectories
+    let targetPath = join(baseDir, cleanName);
+    if (!existsSync(targetPath)) {
+      // Check subdirectories
+      const subdirs = ["animations", "videos", "media", "audio", "plots", "images"];
+      for (const sub of subdirs) {
+        const subPath = join(baseDir, sub, cleanName);
+        if (existsSync(subPath)) { targetPath = subPath; break; }
+      }
+      // Also try sandbox artifacts subdirectory
+      if (!existsSync(targetPath)) {
+        const sbArtifacts = join(SANDBOX_DIR, "artifacts");
+        const sbPath = join(sbArtifacts, cleanName);
+        if (existsSync(sbPath)) targetPath = sbPath;
+        else {
+          for (const sub of ["animations", "videos", "media"]) {
+            const subPath = join(sbArtifacts, sub, cleanName);
+            if (existsSync(subPath)) { targetPath = subPath; break; }
+          }
+        }
+      }
+      // Fallback: check artifacts dir too
+      if (!existsSync(targetPath)) {
+        const artPath = join(ARTIFACTS_DIR, cleanName);
+        if (existsSync(artPath)) targetPath = artPath;
+        else {
+          for (const sub of ["animations", "videos", "media"]) {
+            const subPath = join(ARTIFACTS_DIR, sub, cleanName);
+            if (existsSync(subPath)) { targetPath = subPath; break; }
+          }
+        }
+      }
+    }
+
+    if (!existsSync(targetPath)) {
+      return { success: false, error: `File not found: ${cleanName}` };
+    }
+
+    if (payload.action === "folder") {
+      shell.showItemInFolder(targetPath);
+    } else {
+      shell.openPath(targetPath);
+    }
+    return { success: true, path: targetPath };
   });
 
   safeHandle("artifacts:upload", (_event, payload: { filename: string; data: string }) => {
@@ -1270,8 +1395,35 @@ export function setupIpcBridge(mainWindow: BrowserWindow): void {
   safeHandle("sandbox:get-file", (_event, payload: { name: string }) => {
     const cleanName = (payload?.name || "").replace(/^[/\\]+/, "").split(/[/\\]/).pop() || payload?.name;
     if (!cleanName) return { exists: false, filename: "" };
-    const targetPath = join(SANDBOX_DIR, cleanName);
-    if (existsSync(targetPath)) {
+
+    // Search in SANDBOX_DIR root first, then recursively in subdirectories
+    function findSandboxFile(name: string): string | null {
+      const direct = join(SANDBOX_DIR, name);
+      if (existsSync(direct)) return direct;
+      // Check subdirectories (artifacts/, artifacts/animations/, etc.)
+      if (existsSync(SANDBOX_DIR)) {
+        const subdirs = ["artifacts", "artifacts/animations", "artifacts/videos", "artifacts/media"];
+        for (const sub of subdirs) {
+          const subPath = join(SANDBOX_DIR, sub, name);
+          if (existsSync(subPath)) return subPath;
+        }
+        try {
+          for (const entry of readdirSync(SANDBOX_DIR, { withFileTypes: true })) {
+            if (entry.isDirectory() && !entry.name.startsWith(".") && entry.name !== "venv" && entry.name !== "__pycache__") {
+              const subPath = join(SANDBOX_DIR, entry.name, name);
+              if (existsSync(subPath)) return subPath;
+            }
+          }
+        } catch {}
+      }
+      // Also check artifacts dir
+      const artDirect = join(ARTIFACTS_DIR, name);
+      if (existsSync(artDirect)) return artDirect;
+      return null;
+    }
+
+    const targetPath = findSandboxFile(cleanName);
+    if (targetPath) {
       const buf = readFileSync(targetPath);
       const ext = extname(cleanName).toLowerCase();
       const mimeMap: Record<string, string> = {
