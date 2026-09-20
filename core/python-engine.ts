@@ -176,6 +176,7 @@ export class PythonEngine {
     delete sanitizedEnv.ANTHROPIC_API_KEY;
     delete sanitizedEnv.GROQ_API_KEY;
     delete sanitizedEnv.DEEPSEEK_API_KEY;
+    delete sanitizedEnv.MISTRAL_API_KEY;
 
     try {
       const { stdout, stderr } = await execAsync(

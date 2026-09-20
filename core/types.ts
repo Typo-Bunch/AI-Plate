@@ -50,7 +50,7 @@ export interface ToolExecutionResult {
 // ─── Conversation State ─────────────────────────────────────────────
 
 /** Roles in a conversation turn. */
-export type ChatMode = "normal" | "plan" | "code";
+export type ChatMode = "normal" | "plan" | "code" | "agent";
 
 export type MessageRole = "user" | "model";
 

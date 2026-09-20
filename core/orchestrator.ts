@@ -844,7 +844,7 @@ export class Orchestrator {
           if (!isToolAllowedInMode(mode, call.name)) {
             turnHadError = true;
             functionResponses.push({ id: call.id, name: call.name, response: {
-              error: `Tool "${call.name}" is unavailable in ${mode} mode. Switch to Code mode to execute it.`,
+              error: `Tool "${call.name}" is unavailable in ${mode} mode. Switch to Agent mode to execute it.`,
             } });
             continue;
           }

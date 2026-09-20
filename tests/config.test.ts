@@ -43,11 +43,14 @@ describe("Configuration Subsystem", () => {
     assert.ok(Array.isArray(PROVIDER_MODELS.openai));
     assert.ok(Array.isArray(PROVIDER_MODELS.anthropic));
     assert.ok(Array.isArray(PROVIDER_MODELS.gemini));
+    assert.ok(Array.isArray(PROVIDER_MODELS.mistral));
   });
 
   test("resolveModel should return fallback or configured model", () => {
     const model = resolveModel("openai");
     assert.ok(typeof model === "string" && model.length > 0);
+    const mistralModel = resolveModel("mistral");
+    assert.ok(typeof mistralModel === "string" && mistralModel.length > 0);
     const custom = resolveModel("openai", "gpt-4o-custom");
     assert.equal(custom, "gpt-4o-custom");
   });
@@ -55,5 +58,8 @@ describe("Configuration Subsystem", () => {
   test("resolveEmbeddingModel should return a valid embedding model", () => {
     const emb = resolveEmbeddingModel("openai");
     assert.ok(typeof emb === "string" && emb.length > 0);
+    const mistralEmb = resolveEmbeddingModel("mistral");
+    assert.ok(typeof mistralEmb === "string" && mistralEmb.length > 0);
+    assert.equal(resolveEmbeddingModel("mistral", "mistral-embed"), "mistral-embed");
   });
 });

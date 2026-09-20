@@ -24,7 +24,7 @@ export function getAvailableProviders(): ProviderType[] {
 /** Detect the provider type based on priority list, explicit config, and availability */
 export function detectProviderType(config?: ProviderConfig): ProviderType {
   // 1. Explicit direct override (highest priority)
-  if (config?.provider && isProviderAvailable(config.provider)) return config.provider;
+  if (config?.provider && (config.apiKey || isProviderAvailable(config.provider))) return config.provider;
 
   // 2. Active provider configured in config.yaml
   if (CONFIG.DEFAULT_PROVIDER && isProviderAvailable(CONFIG.DEFAULT_PROVIDER)) {
@@ -49,8 +49,17 @@ export function detectProviderType(config?: ProviderConfig): ProviderType {
   if (model.startsWith("deepseek")) {
     if (isProviderAvailable("deepseek")) return "deepseek";
   }
+  if (
+    model.startsWith("mistral") ||
+    model.startsWith("codestral") ||
+    model.startsWith("ministral") ||
+    model.startsWith("open-mistral") ||
+    model.startsWith("open-mixtral")
+  ) {
+    if (isProviderAvailable("mistral")) return "mistral";
+  }
   if (model.startsWith("llama") || model.startsWith("mistral") || model.startsWith("qwen")) {
-    if (process.env.OLLAMA_BASE_URL || (!isProviderAvailable("groq") && !isProviderAvailable("deepseek"))) {
+    if (process.env.OLLAMA_BASE_URL || (!isProviderAvailable("groq") && !isProviderAvailable("deepseek") && !isProviderAvailable("mistral"))) {
       return "ollama";
     }
   }
@@ -84,6 +93,9 @@ export function detectEmbeddingProviderType(embeddingModel?: string, explicitPro
   }
   if ((model.startsWith("gemini-") || model.startsWith("text-embedding-004")) && isProviderAvailable("gemini")) {
     return "gemini";
+  }
+  if ((model.startsWith("mistral-embed") || model.includes("mistral-embed")) && isProviderAvailable("mistral")) {
+    return "mistral";
   }
   if ((model.startsWith("nomic-") || model.startsWith("all-minilm") || model.startsWith("bge-") || model.startsWith("mxbai-")) && isProviderAvailable("ollama")) {
     return "ollama";

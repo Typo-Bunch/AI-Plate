@@ -234,6 +234,9 @@ export class PluginManager extends EventEmitter {
             delete sanitizedEnv["OPENAI_API_KEY"];
             delete sanitizedEnv["ANTHROPIC_API_KEY"];
             delete sanitizedEnv["OPENROUTER_API_KEY"];
+            delete sanitizedEnv["GROQ_API_KEY"];
+            delete sanitizedEnv["DEEPSEEK_API_KEY"];
+            delete sanitizedEnv["MISTRAL_API_KEY"];
 
             const { stdout, stderr } = await execAsync(command, {
               cwd: SANDBOX_DIR,

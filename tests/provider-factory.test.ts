@@ -22,6 +22,9 @@ describe("AI Provider Factory Subsystem", () => {
 
     const geminiAvail = isProviderAvailable("gemini");
     assert.ok(typeof geminiAvail === "boolean");
+
+    const mistralAvail = isProviderAvailable("mistral");
+    assert.ok(typeof mistralAvail === "boolean");
   });
 
   test("detectProviderType returns a valid provider type string", () => {
@@ -35,6 +38,7 @@ describe("AI Provider Factory Subsystem", () => {
     assert.equal(detectEmbeddingProviderType("text-embedding-3-small", "openai"), "openai");
     assert.equal(detectEmbeddingProviderType("nomic-embed-text", "ollama"), "ollama");
     assert.equal(detectEmbeddingProviderType("text-embedding-004", "gemini"), "gemini");
+    assert.equal(detectEmbeddingProviderType("mistral-embed", "mistral"), "mistral");
   });
 
   test("UniversalEmbedder preserves configured provider and model independently of primary LLM provider", async () => {

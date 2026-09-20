@@ -100,6 +100,7 @@ export const CONFIG = {
     "anthropic",
     "groq",
     "deepseek",
+    "mistral",
     "ollama",
   ],
 
@@ -554,6 +555,16 @@ const DEFAULT_PROVIDER_MODELS: Record<string, string[]> = {
     "deepseek-chat",
     "deepseek-reasoner",
   ],
+  mistral: [
+    "mistral-large-latest",
+    "mistral-small-latest",
+    "codestral-latest",
+    "open-mistral-nemo",
+    "ministral-8b-latest",
+    "ministral-3b-latest",
+    "open-mixtral-8x22b",
+    "open-mixtral-8x7b",
+  ],
   lmstudio: [
     "local-model",
   ],
@@ -594,6 +605,11 @@ const DEFAULT_PROVIDER_EMBEDDING_MODELS: Record<string, string[]> = {
     "text-embedding-3-small",
   ],
   deepseek: [
+    "liquid/lfm-2.5-embedding-350m:free",
+    "text-embedding-3-small",
+  ],
+  mistral: [
+    "mistral-embed",
     "liquid/lfm-2.5-embedding-350m:free",
     "text-embedding-3-small",
   ],
@@ -665,6 +681,8 @@ export function resolveModel(providerType?: ProviderType, overrideModel?: string
       return process.env.GROQ_MODEL || YAML_CONF.provider?.models?.groq || "llama-3.3-70b-versatile";
     case "deepseek":
       return process.env.DEEPSEEK_MODEL || YAML_CONF.provider?.models?.deepseek || "deepseek-chat";
+    case "mistral":
+      return process.env.MISTRAL_MODEL || YAML_CONF.provider?.models?.mistral || "mistral-large-latest";
     case "ollama":
       return process.env.OLLAMA_MODEL || YAML_CONF.provider?.models?.ollama || "llama3.3";
     case "lmstudio":
@@ -695,6 +713,8 @@ export function resolveEmbeddingModel(providerType?: ProviderType, overrideModel
       return process.env.GEMINI_EMBEDDING_MODEL || "text-embedding-004";
     case "openai":
       return process.env.OPENAI_EMBEDDING_MODEL || "text-embedding-3-small";
+    case "mistral":
+      return process.env.MISTRAL_EMBEDDING_MODEL || "mistral-embed";
     case "ollama":
       return process.env.OLLAMA_EMBEDDING_MODEL || "nomic-embed-text";
     default:

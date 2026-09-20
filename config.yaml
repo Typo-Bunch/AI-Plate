@@ -22,6 +22,7 @@ provider:
     - "anthropic"
     - "groq"
     - "deepseek"
+    - "mistral"
     - "ollama"
 
   # Default model per provider
@@ -32,6 +33,7 @@ provider:
     anthropic: "claude-3-7-sonnet-20250219"
     groq: "llama-3.3-70b-versatile"
     deepseek: "deepseek-chat"
+    mistral: "mistral-large-latest"
     ollama: "llama3.3"
 
   # Configurable available models per provider for UI dropdown (Curated with top Free models)
@@ -85,6 +87,15 @@ provider:
     deepseek:
       - "deepseek-chat"
       - "deepseek-reasoner"
+    mistral:
+      - "mistral-large-latest"
+      - "mistral-small-latest"
+      - "codestral-latest"
+      - "open-mistral-nemo"
+      - "ministral-8b-latest"
+      - "ministral-3b-latest"
+      - "open-mixtral-8x22b"
+      - "open-mixtral-8x7b"
     ollama:
       - "llama3.3"
       - "llama3.2"
@@ -151,6 +162,10 @@ embedding:
       - "liquid/lfm-2.5-embedding-350m:free"
       - "text-embedding-3-small"
     deepseek:
+      - "liquid/lfm-2.5-embedding-350m:free"
+      - "text-embedding-3-small"
+    mistral:
+      - "mistral-embed"
       - "liquid/lfm-2.5-embedding-350m:free"
       - "text-embedding-3-small"
     anthropic:
