@@ -1,0 +1,58 @@
+name: Build & Release Windows Executable
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag / Release version (e.g. v1.0.0)'
+        required: false
+        default: 'v1.0.0'
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows-exe:
+    name: Package Windows NSIS Installer (.exe)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm install --ignore-scripts
+
+      - name: Compile TypeScript & Preload Assets
+        run: npm run build
+
+      - name: Build Windows Installer & Portable Executables
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --win nsis portable --config electron-builder.json
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+        with:
+          tag_name: ${{ github.event.inputs.tag_name || github.ref_name }}
+          name: AI Plate ${{ github.event.inputs.tag_name || github.ref_name }}
+          body_path: RELEASE_NOTES.md
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+          files: |
+            release/*.exe
+            release/*.blockmap
+            release/latest.yml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
