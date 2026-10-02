@@ -1,0 +1,106 @@
+{
+  "id": "manim_studio",
+  "name": "Manim Animation Studio",
+  "version": "1.0.0",
+  "author": "AI Plate & Manim Community",
+  "description": "Programmatic mathematical and scientific animation studio powered by Manim Community Edition. Render geometric transformations, calculus proofs, dynamic charts, and scientific motion graphics.",
+  "icon": "🎬",
+  "category": "media",
+  "homepage": "https://www.manim.community/",
+  "enabled": true,
+  "type": "custom",
+  "tools": [
+    {
+      "name": "manim_render",
+      "description": "Render a mathematical or technical animation using Manim Community Edition. Automatically compiles Python Scene code into high-fidelity MP4 or GIF videos, delivers deliverables to the artifacts folder, and provides rich interactive visual cards.",
+      "ui_controls": true,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "scene_code": {
+            "type": "string",
+            "description": "Complete Python script defining one or more Manim Scene classes (e.g. `from manim import *; class MyScene(Scene): ...`)"
+          },
+          "scene_name": {
+            "type": "string",
+            "description": "Specific Scene class name to render (leave blank to auto-detect the first Scene class in the code)"
+          },
+          "quality": {
+            "type": "string",
+            "enum": ["l", "m", "h", "k"],
+            "description": "Render quality: 'l' (480p @ 15fps, fastest), 'm' (720p @ 30fps, standard), 'h' (1080p @ 60fps, high-res), 'k' (4K @ 60fps)",
+            "default": "m"
+          },
+          "format": {
+            "type": "string",
+            "enum": ["mp4", "gif"],
+            "description": "Output deliverable format",
+            "default": "mp4"
+          },
+          "output_filename": {
+            "type": "string",
+            "description": "Optional custom filename for the output video (e.g. 'pythagorean_proof.mp4')"
+          }
+        },
+        "required": ["scene_code"]
+      },
+      "handler": {
+        "type": "javascript",
+        "code": "\nconst sceneCode = String(params.scene_code || '').trim();\nconst sceneNameInput = String(params.scene_name || '').trim();\nconst quality = String(params.quality || 'm').toLowerCase().trim();\nconst format = String(params.format || 'mp4').toLowerCase().trim();\nconst customFilename = String(params.output_filename || '').trim();\n\nif (!sceneCode) {\n  return { error: 'Parameter \"scene_code\" is required to render a Manim animation.' };\n}\n\n// Write scene code to sandbox file\nconst tempSceneFile = `temp_scene_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.py`;\ntry {\n  fs.writeFile(tempSceneFile, sceneCode);\n} catch (writeErr) {\n  return { error: 'Failed to write temporary scene file: ' + writeErr.message };\n}\n\nconst pyRunner = `\nimport ast, json, os, shutil, subprocess, sys, tempfile, time\nfrom pathlib import Path\n\ndef run_manim_pipeline(input_scene_path, explicit_scene, quality_flag, fmt, out_filename):\n    start_time = time.perf_counter()\n    \n    scene_path = Path(input_scene_path).resolve()\n    if not scene_path.exists():\n        return {\"error\": f\"Scene file not found at {input_scene_path}\"}\n        \n    code_str = scene_path.read_text(encoding=\"utf-8\")\n\n    # 1. Parse scene name from AST if not supplied\n    target_scene = explicit_scene\n    if not target_scene:\n        try:\n            tree = ast.parse(code_str)\n            for node in ast.walk(tree):\n                if isinstance(node, ast.ClassDef):\n                    for base in node.bases:\n                        b_name = getattr(base, 'id', '') or getattr(base, 'attr', '')\n                        if 'Scene' in b_name:\n                            target_scene = node.name\n                            break\n                    if target_scene: break\n        except Exception as e:\n            return {\"error\": f\"Syntax error in provided Python Scene code: {str(e)}\"}\n\n    if not target_scene:\n        return {\"error\": \"No Scene subclass detected. Define a class that inherits from Scene (e.g., class MyAnimation(Scene):).\"}\n\n    # 2. Check if Manim is installed; if not, auto-install into isolated .venv_manim\n    cwd = Path.cwd()\n    venv_dir = cwd / \".venv_manim\"\n    venv_py = venv_dir / (\"Scripts/python.exe\" if os.name == \"nt\" else \"bin/python\")\n\n    python_exe = sys.executable\n    # Check host manim\n    has_manim = False\n    try:\n        r = subprocess.run([python_exe, \"-c\", \"import manim; print('OK')\"], capture_output=True, text=True)\n        if r.returncode == 0: has_manim = True\n    except Exception: pass\n\n    if not has_manim:\n        if venv_py.exists():\n            python_exe = str(venv_py)\n            has_manim = True\n        else:\n            subprocess.run([sys.executable, \"-m\", \"venv\", str(venv_dir)], capture_output=True, check=True)\n            subprocess.run([str(venv_py), \"-m\", \"pip\", \"install\", \"--no-cache-dir\", \"manim\", \"imageio-ffmpeg\"], capture_output=True, check=True)\n            python_exe = str(venv_py)\n            has_manim = True\n\n    # 3. Locate FFmpeg binary (using imageio_ffmpeg if not in PATH)\n    ffmpeg_exe = shutil.which(\"ffmpeg\")\n    if not ffmpeg_exe:\n        try:\n            r_ff = subprocess.run([python_exe, \"-c\", \"import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())\"], capture_output=True, text=True)\n            if r_ff.returncode == 0 and os.path.isfile(r_ff.stdout.strip()):\n                ffmpeg_exe = r_ff.stdout.strip()\n        except Exception: pass\n\n    # 4. Prepare isolated render sandbox\n    with tempfile.TemporaryDirectory(prefix=\"aiplate_manim_\") as tmp_dir:\n        tmp_path = Path(tmp_dir)\n        media_out_dir = tmp_path / \"media\"\n        media_out_dir.mkdir(parents=True, exist_ok=True)\n\n        env = os.environ.copy()\n        if ffmpeg_exe:\n            env[\"PATH\"] = os.path.dirname(ffmpeg_exe) + os.pathsep + env.get(\"PATH\", \"\")\n\n        q_arg = f\"-q{quality_flag}\"\n        cmd = [python_exe, \"-m\", \"manim\", \"render\", q_arg, \"--media_dir\", str(media_out_dir)]\n        if fmt == \"gif\": cmd.append(\"-i\")\n        cmd.extend([str(scene_path), target_scene])\n\n        render_res = subprocess.run(cmd, capture_output=True, text=True, env=env, cwd=str(tmp_path), timeout=600)\n        if render_res.returncode != 0:\n            err_msg = render_res.stderr.strip() or render_res.stdout.strip()\n            return {\"error\": f\"Manim rendering failed (exit {render_res.returncode})\", \"details\": err_msg[-2000:]}\n\n        # Locate output video/gif\n        ext = \".gif\" if fmt == \"gif\" else \".mp4\"\n        candidates = [p for p in media_out_dir.rglob(f\"*{ext}\") if \"partial_movie_files\" not in str(p)]\n        if not candidates:\n            return {\"error\": f\"Render finished but no {ext} video was found.\", \"stdout\": render_res.stdout[-1000:]}\n\n        final_media = sorted(candidates, key=lambda p: p.stat().st_mtime, reverse=True)[0]\n\n        # 5. Move deliverable into workspace artifacts/animations/\n        artifacts_dir = cwd / \"artifacts\" / \"animations\"\n        artifacts_dir.mkdir(parents=True, exist_ok=True)\n\n        dest_filename = out_filename if out_filename else f\"{target_scene}_{quality_flag}{ext}\"\n        if not dest_filename.endswith(ext): dest_filename += ext\n        dest_path = artifacts_dir / dest_filename\n\n        shutil.copy2(str(final_media), str(dest_path))\n\n        elapsed = round(time.perf_counter() - start_time, 2)\n        file_size_kb = round(dest_path.stat().st_size / 1024, 2)\n\n        return {\n            \"status\": \"success\",\n            \"scene_name\": target_scene,\n            \"quality\": quality_flag,\n            \"format\": fmt,\n            \"output_path\": str(dest_path),\n            \"filename\": dest_filename,\n            \"relative_path\": f\"artifacts/animations/{dest_filename}\",\n            \"file_size_kb\": file_size_kb,\n            \"render_latency_sec\": elapsed\n        }\n\nif __name__ == '__main__':\n    in_file = sys.argv[1] if len(sys.argv) > 1 else ''\n    scene = sys.argv[2] if len(sys.argv) > 2 else ''\n    q = sys.argv[3] if len(sys.argv) > 3 else 'm'\n    f = sys.argv[4] if len(sys.argv) > 4 else 'mp4'\n    out_f = sys.argv[5] if len(sys.argv) > 5 else ''\n    try:\n        res = run_manim_pipeline(in_file, scene, q, f, out_f)\n    finally:\n        try:\n            if in_file and os.path.exists(in_file):\n                os.remove(in_file)\n        except Exception: pass\n    print('___MANIM_OUTPUT_START___' + json.dumps(res) + '___MANIM_OUTPUT_END___')\n`;\n\nlet stdout = '';\ntry {\n  const runRes = await shell.runPython(pyRunner, [\n    tempSceneFile,\n    sceneNameInput,\n    quality,\n    format,\n    customFilename\n  ], 600000);\n  stdout = runRes.stdout;\n} catch (err) {\n  return { error: 'Failed to execute Manim render process: ' + (err.message || String(err)) };\n}\n\nlet resData = null;\nif (stdout.includes('___MANIM_OUTPUT_START___') && stdout.includes('___MANIM_OUTPUT_END___')) {\n  try {\n    const jsonStr = stdout.split('___MANIM_OUTPUT_START___')[1].split('___MANIM_OUTPUT_END___')[0];\n    resData = JSON.parse(jsonStr);\n  } catch (parseErr) {\n    return { error: 'Failed to parse Manim render result: ' + parseErr.message, raw: stdout };\n  }\n} else {\n  return { error: 'No structured output returned by Manim engine', raw: stdout };\n}\n\nif (resData.error) {\n  return resData;\n}\n\nconst qualityLabels = { l: '480p (Low)', m: '720p (Standard)', h: '1080p (High)', k: '4K (Ultra)' };\n\nconst cardHtml = `\n  <div class=\"plugin-custom-card\" style=\"border: 1px solid rgba(59, 130, 246, 0.4); background: linear-gradient(145deg, rgba(37, 99, 235, 0.05) 0%, rgba(147, 51, 234, 0.05) 100%); padding: 16px; border-radius: 12px; gap: 12px;\">\n    <div style=\"display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-subtle); padding-bottom: 10px;\">\n      <div style=\"display: flex; align-items: center; gap: 8px;\">\n        <span style=\"font-size: 24px;\">🎬</span>\n        <div>\n          <div style=\"font-weight: 700; font-size: 14px; color: var(--text-main); display: flex; align-items: center; gap: 6px;\">\n            ${resData.scene_name}\n            <span style=\"font-size: 10px; padding: 2px 7px; background: rgba(59, 130, 246, 0.2); color: #3b82f6; border-radius: 10px; font-weight: 700; text-transform: uppercase;\">\n              ${resData.format}\n            </span>\n          </div>\n          <div style=\"font-size: 11px; color: var(--text-dim);\">\n            Manim Community Edition • ${qualityLabels[resData.quality] || resData.quality}\n          </div>\n        </div>\n      </div>\n      <div style=\"display: flex; align-items: center; gap: 8px;\">\n        <span style=\"font-size: 11px; color: var(--text-dim); background: rgba(0,0,0,0.25); padding: 3px 8px; border-radius: 6px;\">\n          ⏱️ ${resData.render_latency_sec}s\n        </span>\n        <span style=\"font-size: 11px; color: #10b981; background: rgba(16, 185, 129, 0.15); padding: 3px 8px; border-radius: 6px; font-weight: 600;\">\n          💾 ${resData.file_size_kb} KB\n        </span>\n      </div>\n    </div>\n\n    <div style=\"display: flex; align-items: center; justify-content: space-between; background: rgba(0,0,0,0.3); border-radius: 8px; padding: 10px 14px; font-size: 12px;\">\n      <span style=\"color: var(--text-dim);\">Deliverable File:</span>\n      <span style=\"color: var(--text-accent); font-family: monospace; font-weight: 600;\">📁 ${resData.relative_path}</span>\n    </div>\n\n    <div style=\"font-size: 11.5px; color: var(--text-dim); line-height: 1.5;\">\n      ✅ Video successfully compiled without residual partial frame caches in workspace root.\n    </div>\n  </div>\n`;\n\nreturn {\n  ui_type: 'card',\n  html: cardHtml,\n  ...resData\n};\n"
+      }
+    },
+    {
+      "name": "manim_check_env",
+      "description": "Inspect the Python runtime for Manim Community Edition and FFmpeg, or provision an isolated virtual environment.",
+      "ui_controls": true,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["check", "install_isolated", "purge_cache"],
+            "description": "Action to perform",
+            "default": "check"
+          }
+        },
+        "required": []
+      },
+      "handler": {
+        "type": "javascript",
+        "code": "\nconst action = String(params.action || 'check').trim().toLowerCase();\n\nconst pyCode = `\nimport json, os, shutil, subprocess, sys\nfrom pathlib import Path\n\nact = sys.argv[1] if len(sys.argv) > 1 else 'check'\ncwd = Path.cwd()\nvenv_dir = cwd / \".venv_manim\"\nvenv_py = venv_dir / (\"Scripts/python.exe\" if os.name == \"nt\" else \"bin/python\")\n\nif act == 'purge_cache':\n    removed = []\n    for p in [cwd / \".manim_cache\", cwd / \"media\"]:\n        if p.exists():\n            shutil.rmtree(str(p), ignore_errors=True)\n            removed.append(str(p))\n    print(json.dumps({\"status\": \"purged\", \"removed\": removed}))\n    sys.exit(0)\n\n# Test manim\nhas_manim = False\nmanim_ver = \"unknown\"\ntry:\n    r = subprocess.run([sys.executable, \"-c\", \"import manim; print(manim.__version__)\"], capture_output=True, text=True)\n    if r.returncode == 0:\n        has_manim = True\n        manim_ver = r.stdout.strip()\nexcept Exception: pass\n\nis_venv = False\nif not has_manim and venv_py.exists():\n    try:\n        r = subprocess.run([str(venv_py), \"-c\", \"import manim; print(manim.__version__)\"], capture_output=True, text=True)\n        if r.returncode == 0:\n            has_manim = True\n            manim_ver = r.stdout.strip()\n            is_venv = True\n    except Exception: pass\n\nif act == 'install_isolated' and not has_manim:\n    subprocess.run([sys.executable, \"-m\", \"venv\", str(venv_dir)], capture_output=True, check=True)\n    subprocess.run([str(venv_py), \"-m\", \"pip\", \"install\", \"--no-cache-dir\", \"manim\", \"imageio-ffmpeg\"], capture_output=True, check=True)\n    has_manim = True\n    is_venv = True\n    manim_ver = \"installed (latest)\"\n\n# Test ffmpeg\nffmpeg_path = shutil.which(\"ffmpeg\")\nif not ffmpeg_path:\n    try:\n        r_ff = subprocess.run([sys.executable, \"-c\", \"import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())\"], capture_output=True, text=True)\n        if r_ff.returncode == 0 and os.path.isfile(r_ff.stdout.strip()):\n            ffmpeg_path = r_ff.stdout.strip()\n    except Exception: pass\n\nprint(json.dumps({\n    \"has_manim\": has_manim,\n    \"manim_version\": manim_ver,\n    \"is_venv\": is_venv,\n    \"has_ffmpeg\": bool(ffmpeg_path),\n    \"ffmpeg_path\": ffmpeg_path,\n    \"python\": sys.executable\n}))\n`;\n\nlet stdout = '';\ntry {\n  const res = await shell.runPython(pyCode, [action], 120000);\n  stdout = res.stdout;\n} catch (err) {\n  return { error: 'Failed to inspect environment: ' + (err.message || String(err)) };\n}\n\nlet info = {};\ntry {\n  info = JSON.parse(stdout.trim());\n} catch (e) {\n  return { error: 'Invalid output: ' + stdout };\n}\n\nconst ready = info.has_manim && info.has_ffmpeg;\nconst statusColor = ready ? '#10b981' : '#f59e0b';\nconst statusText = ready ? `Ready (Manim v${info.manim_version})` : 'Setup Needed';\n\nconst cardHtml = `\n  <div class=\"plugin-custom-card\" style=\"border: 1px solid ${statusColor}; padding: 14px 16px; border-radius: 10px; gap: 10px;\">\n    <div style=\"display: flex; align-items: center; justify-content: space-between;\">\n      <div style=\"font-weight: 700; font-size: 13px; color: var(--text-main); display: flex; align-items: center; gap: 6px;\">\n        ⚙️ Manim Studio Runtime Environment\n      </div>\n      <span style=\"font-size: 11px; padding: 2px 8px; border-radius: 12px; background: rgba(0,0,0,0.3); color: ${statusColor}; font-weight: 600;\">\n        ${statusText}\n      </span>\n    </div>\n    <div style=\"font-size: 11.5px; color: var(--text-dim); line-height: 1.5;\">\n      Manim Community: <strong>${info.has_manim ? 'Available' : 'Not Found'}</strong> (v${info.manim_version})<br>\n      FFmpeg Video Codec: <strong>${info.has_ffmpeg ? 'Available' : 'Missing'}</strong> (${info.ffmpeg_path || 'None'})\n    </div>\n  </div>\n`;\n\nreturn {\n  ui_type: 'card',\n  html: cardHtml,\n  ...info\n};\n"
+      }
+    },
+    {
+      "name": "manim_sample_templates",
+      "description": "Retrieve ready-to-render Manim Community template scenes (shapes morphing, coordinate calculus parabola, or animated bar chart).",
+      "ui_controls": true,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "template": {
+            "type": "string",
+            "enum": [
+              "shapes_morph",
+              "math_parabola_axes",
+              "bar_chart_metrics"
+            ],
+            "description": "Template to fetch",
+            "default": "shapes_morph"
+          }
+        },
+        "required": ["template"]
+      },
+      "handler": {
+        "type": "javascript",
+        "code": "\nconst tmpl = String(params.template || 'shapes_morph').trim();\n\nconst templates = {\n  shapes_morph: `from manim import *\n\nclass ShapesMorph(Scene):\n    def construct(self):\n        title = Text(\"AI Plate × Manim\", font_size=40, color=BLUE)\n        self.play(Write(title))\n        self.wait(0.5)\n        self.play(FadeOut(title))\n\n        square = Square(side_length=2.5, color=BLUE, fill_opacity=0.6)\n        circle = Circle(radius=1.5, color=RED, fill_opacity=0.7)\n        triangle = Triangle(color=YELLOW, fill_opacity=0.8).scale(1.8)\n\n        self.play(Create(square))\n        self.play(square.animate.rotate(PI / 4))\n        self.play(Transform(square, circle))\n        self.play(Transform(square, triangle))\n        self.play(FadeOut(square, scale=0.5))\n`,\n  math_parabola_axes: `from manim import *\n\nclass ParabolaMinima(Scene):\n    def construct(self):\n        axes = Axes(x_range=[-3, 3, 1], y_range=[-1, 5, 1], x_length=7, y_length=5, axis_config={\"color\": BLUE_C})\n        labels = axes.get_axis_labels(x_label=\"x\", y_label=\"f(x)\")\n        title = Text(\"f(x) = x² - 2x + 1\", font_size=32, color=YELLOW).to_edge(UP)\n\n        self.play(Create(axes), Write(labels), Write(title))\n        parabola = axes.plot(lambda x: x**2 - 2*x + 1, x_range=[-1.5, 3], color=GREEN)\n        self.play(Create(parabola))\n\n        dot = Dot(color=RED).move_to(axes.c2p(1, 0))\n        min_lbl = Text(\"Min (1,0)\", font_size=18, color=RED).next_to(dot, DOWN)\n        self.play(FadeIn(dot, scale=2), Write(min_lbl))\n        self.wait(1)\n`,\n  bar_chart_metrics: `from manim import *\n\nclass BarChartMetrics(Scene):\n    def construct(self):\n        title = Text(\"Inference Latency (ms)\", font_size=30, color=WHITE).to_edge(UP)\n        self.play(Write(title))\n\n        models = [\"Baseline\", \"Optimized\", \"AI Plate\"]\n        vals = [180, 110, 42]\n        cols = [RED, ORANGE, GREEN]\n\n        bars = VGroup()\n        for i, (m, v, c) in enumerate(zip(models, vals, cols)):\n            bar = Rectangle(width=1.6, height=(v/200)*4, color=c, fill_color=c, fill_opacity=0.8)\n            bar.move_to([-3.0 + i*3.0, -2.5 + (v/200)*2, 0])\n            lbl = Text(m, font_size=18, color=WHITE).next_to(bar, DOWN)\n            v_lbl = Text(f\"{v}ms\", font_size=20, color=YELLOW).next_to(bar, UP)\n            bars.add(VGroup(bar, lbl, v_lbl))\n\n        baseline = Line([-4.5, -2.5, 0], [4.5, -2.5, 0], color=GRAY)\n        self.play(Create(baseline), *[FadeIn(b, shift=UP) for b in bars])\n        self.wait(1.5)\n`\n};\n\nconst code = templates[tmpl] || templates.shapes_morph;\nreturn {\n  template: tmpl,\n  scene_code: code,\n  instructions: 'Pass this scene_code directly into manim_render to compile this animation.'\n};\n"
+      }
+    }
+  ],
+  "lifecycle": {
+    "on_uninstall": {
+      "type": "javascript",
+      "code": "\n// Zero-Footprint Decoupled Cleanup Hook\nconst cleanPy = `\nimport os, sys, shutil\nfrom pathlib import Path\n\ncwd = Path.cwd()\ntargets = [\n    cwd / \".venv_manim\",\n    cwd / \".manim_cache\",\n    cwd / \"media\",\n    cwd / \".agents\" / \"skills\" / \"manim\" / \".venv_manim\",\n    cwd / \"plugins\" / \"installed\" / \"manim_studio\" / \".venv_manim\"\n]\nfor t in targets:\n    if t.exists():\n        if t.is_dir(): shutil.rmtree(str(t), ignore_errors=True)\n        else: t.unlink(missing_ok=True)\n`;\ntry {\n  await shell.runPython(cleanPy, [], 30000);\n} catch (e) {}\n"
+    }
+  },
+  "permissions": []
+}

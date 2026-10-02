@@ -21,6 +21,9 @@ import { PluginManager } from "./plugin-manager.js";
 import { SessionVectorMemory } from "./session-memory.js";
 import { StateManager } from "./state-manager.js";
 import { VectorStore } from "./vector-store.js";
+import { OkfStore } from "./okf-store.js";
+import { HybridKnowledgeRouter } from "./hybrid-knowledge-router.js";
+import { setSharedOkfStore, setSharedHybridRouter } from "../plugins/tools/rag-plugin.js";
 import { UniversalEmbedder } from "./embedder.js";
 import { SecurityManager } from "./security-manager.js";
 import { ContextCompressor } from "./context-compressor.js";
@@ -56,6 +59,8 @@ export class Orchestrator {
   private readonly stateManager: StateManager;
   private readonly sessionMemory: SessionVectorMemory;
   private readonly vectorStore: VectorStore;
+  private readonly okfStore: OkfStore;
+  private readonly hybridRouter: HybridKnowledgeRouter;
   private readonly securityManager: SecurityManager;
   private readonly contextCompressor: ContextCompressor;
   private readonly skillsManager: SkillsManager;
@@ -131,7 +136,11 @@ export class Orchestrator {
     this.stateManager = new StateManager();
     this.sessionMemory = new SessionVectorMemory();
     this.vectorStore = new VectorStore();
+    this.okfStore = new OkfStore();
+    this.hybridRouter = new HybridKnowledgeRouter(this.okfStore, this.vectorStore);
     this.pluginManager.setSharedVectorStore(this.vectorStore);
+    setSharedOkfStore(this.okfStore);
+    setSharedHybridRouter(this.hybridRouter);
 
     this.logCallback = logCallback ?? (() => {});
 
@@ -167,6 +176,16 @@ export class Orchestrator {
   /** Get the shared Vector Store instance (for plugin sharing). */
   getVectorStore(): VectorStore {
     return this.vectorStore;
+  }
+
+  /** Get the OKF Store instance. */
+  getOkfStore(): OkfStore {
+    return this.okfStore;
+  }
+
+  /** Get the Hybrid Knowledge Router instance. */
+  getHybridRouter(): HybridKnowledgeRouter {
+    return this.hybridRouter;
   }
 
   /** Get the Session Vector Memory instance. */
@@ -699,34 +718,31 @@ export class Orchestrator {
 
       const contextParts: string[] = [];
 
-      // ─── AUTO-RAG: Query the Vector Store ─────────────────────
+      // ─── HYBRID KNOWLEDGE RETRIEVAL (OKF + RAG) ─────────────
       if (
         CONFIG.RAG.AUTO_QUERY_ENABLED &&
-        this.pluginManager.isPluginEnabled("rag") &&
-        this.vectorStore.totalChunks > 0
+        this.pluginManager.isPluginEnabled("rag")
       ) {
         try {
           instance.turnEmbeddingTokens += Math.ceil(userInput.length / 4);
           this.turnEmbeddingTokens += Math.ceil(userInput.length / 4);
-          const kbResults = await this.vectorStore.query(userInput);
+          const hybridResult = await this.hybridRouter.route(userInput);
 
-          if (kbResults.length > 0) {
-            const kbContext = this.vectorStore.formatContextForPrompt(kbResults);
-            contextParts.push(kbContext);
+          if (hybridResult.hasContext) {
+            contextParts.push(hybridResult.formattedContext);
 
-            const sources = [
-              ...new Set(kbResults.map((r) => r.chunk.sourceDocument)),
-            ];
+            const okfCount = hybridResult.okfNodes.length;
+            const ragCount = hybridResult.ragChunks.length;
             this.log(
               "info",
-              `📚 Auto-RAG: ${kbResults.length} relevant chunk(s) retrieved from [${sources.join(", ")}]`
+              `🧠 Hybrid Knowledge Retrieval: ${okfCount} OKF node(s), ${ragCount} RAG chunk(s) from [${hybridResult.sources.join(", ")}]`
             );
           }
         } catch (kbErr) {
           turnHadError = true;
           this.log(
             "error",
-            `⚠️ Knowledge base auto-query failed: ${kbErr instanceof Error ? kbErr.message : String(kbErr)}`
+            `⚠️ Hybrid knowledge retrieval failed: ${kbErr instanceof Error ? kbErr.message : String(kbErr)}`
           );
         }
       }

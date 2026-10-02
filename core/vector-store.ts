@@ -11,7 +11,7 @@
 
 import { readFileSync, existsSync } from "node:fs";
 import { resolve, basename } from "node:path";
-import { CONFIG, logVerbose } from "./config.js";
+import { CONFIG, logVerbose, resolveWorkspacePath } from "./config.js";
 import { UniversalEmbedder } from "./embedder.js";
 import { parseDocumentContent } from "./document-parser.js";
 import {
@@ -139,8 +139,12 @@ export class VectorStore {
   private readonly agentDb: AgentDatabase;
   private readonly embedder: UniversalEmbedder;
 
-  constructor(customDbPath?: string) {
-    this.agentDb = AgentDatabase.getInstance(customDbPath);
+  constructor(customDbPathOrInstance?: string | AgentDatabase) {
+    if (customDbPathOrInstance instanceof AgentDatabase) {
+      this.agentDb = customDbPathOrInstance;
+    } else {
+      this.agentDb = AgentDatabase.getInstance(customDbPathOrInstance);
+    }
     this.embedder = UniversalEmbedder.getInstance();
   }
 
@@ -153,7 +157,7 @@ export class VectorStore {
     filePath: string,
     options?: { chunkSize?: number; chunkOverlap?: number }
   ): Promise<IngestedDocument> {
-    const resolvedPath = resolve(process.cwd(), filePath);
+    const resolvedPath = resolveWorkspacePath(filePath);
 
     if (!existsSync(resolvedPath)) {
       throw new Error(`File not found: "${filePath}" (resolved: "${resolvedPath}")`);

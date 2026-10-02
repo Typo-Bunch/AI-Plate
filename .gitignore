@@ -26,6 +26,8 @@ package/
 # ─── Sandboxed Execution & Temporary Files ───────────────────────────
 .sandbox/
 sandbox/
+scratch/
+connectors/installed/conn_lifecycle_test_*
 *.tmp
 *.log
 

@@ -198,7 +198,6 @@ export class SessionVectorMemory {
 
   setSessionMode(sessionId: string, mode: ChatMode): void {
     if (!isChatMode(mode)) throw new Error("Invalid chat mode");
-    if (!this.stmtCheckSessionExists.get(sessionId)) throw new Error("Session does not exist");
     this.agentDb.setMeta(`chat_mode:${sessionId}`, mode);
   }
 
