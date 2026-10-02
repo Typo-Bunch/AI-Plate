@@ -63,7 +63,7 @@ jobs:
           if [ -n "$CUSTOM_TITLE" ]; then
             TITLE="$CUSTOM_TITLE"
           elif [ -f "RELEASE_NOTES.md" ]; then
-            TITLE=$(node -e "const fs=require('fs'); const m=fs.readFileSync('RELEASE_NOTES.md','utf8').match(/^#\s+(.+)$/m); console.log(m ? m[1].trim() : '');")
+            TITLE=$(node -e "const fs=require('fs'); const m=fs.readFileSync('RELEASE_NOTES.md','utf8').match(/^#\s+(.+)$/m); console.log(m ? m[1].replace(/<[^>]+>/g, '').trim() : '');")
           fi
 
           if [ -z "$TITLE" ]; then
