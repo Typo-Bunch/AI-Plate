@@ -27,7 +27,8 @@ package/
 .sandbox/
 sandbox/
 scratch/
-connectors/installed/conn_lifecycle_test_*
+connectors/installed/*
+!connectors/installed/.gitkeep
 *.tmp
 *.log
 
