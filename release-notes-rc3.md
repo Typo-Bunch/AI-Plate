@@ -1,8 +1,12 @@
 # AI Plate v1.0.0-rc.3
 
 ### 🚀 What's New
+- **Open Knowledge Format (OKF) & Hybrid Knowledge Router**: Dual-tier hybrid knowledge architecture combining Tier 1 deterministic ground-truth specifications with Tier 2 Float32 vector RAG.
+- **Interactive Visual Force Graph (`🕸️ Force Graph`)**: Real-time canvas force-directed graph with anti-collision badge layout, dynamic zoom/pan, and live node inspectors.
+- **Auto-Distillation Engine**: Ingest raw PDFs, manuals, and unstructured text and automatically extract invariants, rules, and code links into structured OKF nodes in $< 30\text{ ms}$.
+- **Code Grounding & Invariant Drift Verifier**: Automated scanning of workspace code implementations linked to OKF specs to detect missing files or broken implementations.
 - **Mistral AI Provider**: Native integration with Mistral models (e.g., `mistral-large-latest`, `mistral-embed`) with automated API key resolution.
-- **Unified Agent Mode**: Streamlined agent experience defaulting to full-access Agent mode with clean mode gating.
+- **Unified Multi-Agent Modes**: Seamless Normal, Plan, and Code execution modes with strict boundary controls.
 - **Artifacts & Deliverables Sorting**: Sort deliverables by Date (Newest/Oldest), Name (A-Z/Z-A), and File Size (Largest/Smallest).
 - **Video & Media Streaming**: Full HTTP 206 byte-range streaming for large video artifacts and external system player integration.
 - **API Message Sanitization**: Resolved 400 error (`Unexpected role 'tool' after role 'user'`) by ensuring strict message sequencing when dispatching to OpenAI-compatible endpoints.
