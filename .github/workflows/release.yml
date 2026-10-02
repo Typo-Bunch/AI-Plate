@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: 'Tag / Release version (e.g. v1.0.0-rc.3)'
+        description: 'Tag / Release version (e.g. v1.0.0)'
         required: false
-        default: 'v1.0.0-rc.3'
+        default: 'v1.0.0'
 
 permissions:
   contents: write
@@ -46,10 +46,10 @@ jobs:
         with:
           tag_name: ${{ github.event.inputs.tag_name || github.ref_name }}
           name: AI Plate ${{ github.event.inputs.tag_name || github.ref_name }}
-          body_path: release-notes-rc3.md
+          body_path: RELEASE_NOTES.md
           generate_release_notes: true
           draft: false
-          prerelease: true
+          prerelease: false
           files: |
             release/*.exe
             release/*.blockmap
