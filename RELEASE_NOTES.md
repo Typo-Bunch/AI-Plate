@@ -15,6 +15,7 @@ We are thrilled to announce the official **v1.0.0 release** of **AI Plate — Op
 - 📦 **Artifacts & Deliverables Sorting**: Sort deliverables by Date (Newest/Oldest), Name (A-Z/Z-A), and File Size (Largest/Smallest).
 - 🎬 **Video & Media Streaming**: Full HTTP 206 byte-range streaming for large video artifacts and external system player integration.
 - 🛡️ **API Message Sanitization**: Strict message sequencing when dispatching multi-turn tool calls to OpenAI-compatible endpoints.
+- 🐍 **Bundled Python & Voice Engine**: Standalone embedded Python 3.11 runtime pre-configured with Kokoro TTS and Moonshine STT libraries for zero-friction local voice without requiring system Python. Model weights remain lightweight and downloadable on-demand in Settings.
 
 ---
 
