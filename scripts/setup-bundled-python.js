@@ -137,6 +137,16 @@ async function setupBundledPython() {
 
     try { fs.unlinkSync(getPipScript); } catch {}
 
+    console.log("📦 [Python Setup] Pre-installing Kokoro TTS dependencies (kokoro-onnx, soundfile)...");
+    try {
+      execSync(`"${PYTHON_EXE}" -m pip install kokoro-onnx soundfile --no-warn-script-location`, {
+        cwd: PYTHON_DIR,
+        stdio: "inherit",
+      });
+    } catch (e) {
+      console.warn("⚠️ [Python Setup] Optional voice pre-install warning:", e.message);
+    }
+
     // 4. Verify installation
     const ver = execSync(`"${PYTHON_EXE}" -V`, { encoding: "utf-8" }).trim();
     const pipVer = execSync(`"${PYTHON_EXE}" -m pip --version`, { encoding: "utf-8" }).trim();

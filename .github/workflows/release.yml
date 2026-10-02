@@ -46,6 +46,9 @@ jobs:
       - name: Install Dependencies
         run: npm install --ignore-scripts
 
+      - name: Setup Bundled Python Runtime
+        run: npm run setup:python
+
       - name: Compile TypeScript & Preload Assets
         run: npm run build
 
