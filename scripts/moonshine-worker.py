@@ -31,10 +31,25 @@ model_lock = threading.Lock()
 last_activity_time = time.time()
 IDLE_TIMEOUT_SECONDS = 300  # 5 minutes idle to unload model from RAM
 
+def ensure_moonshine_installed():
+    try:
+        import moonshine_onnx
+        import soundfile
+    except ImportError:
+        import subprocess
+        sys.stderr.write("[Moonshine] Dependencies missing. Auto-installing useful-moonshine-onnx and soundfile via pip...\n")
+        sys.stderr.flush()
+        try:
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "useful-moonshine-onnx", "soundfile", "--no-warn-script-location"])
+        except Exception as e:
+            sys.stderr.write(f"[Moonshine] Auto-install failed: {e}\n")
+            raise RuntimeError(f"Moonshine STT dependencies missing: {e}. Please install useful-moonshine-onnx and soundfile.") from e
+
 def get_tokenizer():
     global tokenizer_instance
     if tokenizer_instance is None:
         try:
+            ensure_moonshine_installed()
             from moonshine_onnx.transcribe import load_tokenizer
             tokenizer_instance = load_tokenizer()
         except Exception as e:
@@ -81,12 +96,9 @@ def get_moonshine_model(model_name="moonshine/tiny", models_dir=None):
     global moonshine_instance, current_model_name
     with model_lock:
         if moonshine_instance is None or current_model_name != model_name:
-            try:
-                import moonshine_onnx
-                from moonshine_onnx import MoonshineOnnxModel
-            except ImportError as ie:
-                sys.stderr.write(f"[Moonshine] Missing dependencies: {ie}. Run 'pip install useful-moonshine-onnx soundfile'\n")
-                raise RuntimeError(f"Moonshine STT dependencies missing: {ie}. Please install useful-moonshine-onnx and soundfile.")
+            ensure_moonshine_installed()
+            import moonshine_onnx
+            from moonshine_onnx import MoonshineOnnxModel
 
             appdata = os.getenv("AIPLATE_USERDATA") or (
                 os.path.join(os.getenv("APPDATA", ""), "AI Plate") if os.getenv("APPDATA") else None
