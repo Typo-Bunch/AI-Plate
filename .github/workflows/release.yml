@@ -35,10 +35,10 @@ jobs:
       - name: Compile TypeScript & Preload Assets
         run: npm run build
 
-      - name: Build Windows Installer & Portable Executables
+      - name: Build Windows Installer Executable
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx electron-builder --win nsis portable --config electron-builder.json
+        run: npx electron-builder --win nsis --config electron-builder.json
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
