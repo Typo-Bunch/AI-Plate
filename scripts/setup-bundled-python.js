@@ -67,6 +67,38 @@ function downloadFile(url, destPath) {
   });
 }
 
+const REQUIRED_VOICE_PACKAGES = [
+  { module: "kokoro_onnx", package: "kokoro-onnx" },
+  { module: "soundfile", package: "soundfile" },
+  { module: "moonshine_onnx", package: "useful-moonshine-onnx" },
+];
+
+function ensureVoiceDependencies(pythonExe) {
+  const missing = [];
+  for (const item of REQUIRED_VOICE_PACKAGES) {
+    try {
+      execSync(`"${pythonExe}" -c "import ${item.module}"`, { stdio: "ignore" });
+    } catch {
+      missing.push(item.package);
+    }
+  }
+
+  if (missing.length > 0) {
+    console.log(`📦 [Python Setup] Installing missing voice runtime packages (${missing.join(", ")})...`);
+    try {
+      execSync(`"${pythonExe}" -m pip install ${missing.join(" ")} --no-warn-script-location`, {
+        cwd: path.dirname(pythonExe),
+        stdio: "inherit",
+      });
+      console.log("✔ [Python Setup] Voice runtime packages installed successfully.");
+    } catch (e) {
+      console.warn("⚠️ [Python Setup] Warning installing voice packages:", e.message);
+    }
+  } else {
+    console.log("✔ [Python Setup] Voice packages verified: kokoro-onnx, soundfile, useful-moonshine-onnx.");
+  }
+}
+
 async function setupBundledPython() {
   console.log("🐍 [Python Setup] Checking bundled Python runtime in:", PYTHON_DIR);
 
@@ -80,6 +112,7 @@ async function setupBundledPython() {
       try {
         const pipVer = execSync(`"${PYTHON_EXE}" -m pip --version`, { encoding: "utf-8" }).trim();
         console.log(`✔ [Python Setup] Bundled pip verified: ${pipVer}`);
+        ensureVoiceDependencies(PYTHON_EXE);
         return;
       } catch {
         console.log("⚠️ [Python Setup] Python is present, but pip is missing. Bootstrapping pip...");
@@ -137,15 +170,8 @@ async function setupBundledPython() {
 
     try { fs.unlinkSync(getPipScript); } catch {}
 
-    console.log("📦 [Python Setup] Pre-installing Kokoro TTS dependencies (kokoro-onnx, soundfile)...");
-    try {
-      execSync(`"${PYTHON_EXE}" -m pip install kokoro-onnx soundfile --no-warn-script-location`, {
-        cwd: PYTHON_DIR,
-        stdio: "inherit",
-      });
-    } catch (e) {
-      console.warn("⚠️ [Python Setup] Optional voice pre-install warning:", e.message);
-    }
+    // 4. Pre-install Kokoro TTS and Moonshine STT dependencies
+    ensureVoiceDependencies(PYTHON_EXE);
 
     // 4. Verify installation
     const ver = execSync(`"${PYTHON_EXE}" -V`, { encoding: "utf-8" }).trim();

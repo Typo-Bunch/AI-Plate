@@ -11,9 +11,9 @@
     "build": "tsc && node -e \"const fs = require('fs'); fs.mkdirSync('dist/electron', {recursive:true}); fs.copyFileSync('electron/preload.cjs', 'dist/electron/preload.cjs'); console.log('\\x1b[32m✔ Build completed successfully! TypeScript compiled to dist/\\x1b[0m');\"",
     "start": "electron .",
     "dev": "npm run build && electron .",
-    "dist": "npm run build && electron-builder --win nsis --config electron-builder.json",
-    "dist:setup": "npm run build && electron-builder --win nsis --config electron-builder.json",
-    "dist:dir": "npm run build && electron-builder --win --dir --config electron-builder.json",
+    "dist": "npm run setup:python && npm run build && electron-builder --win nsis --config electron-builder.json",
+    "dist:setup": "npm run setup:python && npm run build && electron-builder --win nsis --config electron-builder.json",
+    "dist:dir": "npm run setup:python && npm run build && electron-builder --win --dir --config electron-builder.json",
     "setup:python": "node scripts/setup-bundled-python.js",
     "test": "node --import tsx --test \"tests/**/*.test.ts\""
   },
