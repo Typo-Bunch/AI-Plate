@@ -36,6 +36,7 @@ import {
   logVerbose,
   getResolvedConfigYamlPath,
   getResolvedEnvPath,
+  resolveWorkspacePath,
 } from "../core/config.js";
 import { parseDocumentContent } from "../core/document-parser.js";
 import type { ProviderType } from "../core/ai-provider.js";
@@ -419,7 +420,9 @@ export function setupIpcBridge(mainWindow: BrowserWindow): void {
       availableProviders: getAvailableProviders(),
       providerModels: dynamicModels,
       providerEmbeddingModels: dynamicEmbeddingModels,
-      totalDocuments: stats.totalDocuments,
+      totalDocuments: stats.totalDocuments + orchestrator.getOkfStore().listNodes().length,
+      totalOkfNodes: orchestrator.getOkfStore().listNodes().length,
+      totalRagDocuments: stats.totalDocuments,
       totalChunks: stats.totalChunks,
       toolsCount: orchestrator.getTools().length,
       tools: orchestrator.getTools(),
@@ -877,6 +880,138 @@ export function setupIpcBridge(mainWindow: BrowserWindow): void {
       chunkCount = ingestResult.chunkCount;
     }
     return { success: true, filename: payload.filename, chunks: chunkCount };
+  });
+
+  safeHandle("kb:delete", (_event, payload: { filename: string }) => {
+    if (!payload?.filename) throw validationError("filename is required");
+    const vs = orchestrator.getVectorStore();
+    const removed = vs.removeDocument(payload.filename);
+    return { success: removed, filename: payload.filename };
+  });
+
+  // ─── 6.6b Open Knowledge Format (OKF) & Hybrid Knowledge IPC ───────────
+  safeHandle("okf:nodes", (_event, payload?: { domain?: string; authority?: string; tag?: string }) => {
+    const okf = orchestrator.getOkfStore();
+    const nodes = okf.listNodes(payload);
+    return { success: true, total: nodes.length, nodes };
+  });
+
+  safeHandle("okf:get", (_event, payload: { id: string }) => {
+    if (!payload?.id) throw validationError("id is required");
+    const okf = orchestrator.getOkfStore();
+    const node = okf.getNode(payload.id);
+    if (!node) return { success: false, message: `OKF node '${payload.id}' not found` };
+    return { success: true, node };
+  });
+
+  safeHandle("okf:save", async (_event, payload: any) => {
+    if (!payload?.id || !payload?.title || !payload?.content) {
+      throw validationError("id, title, and content are required");
+    }
+    const okf = orchestrator.getOkfStore();
+    const node = await okf.saveNode({
+      id: payload.id,
+      title: payload.title,
+      domain: payload.domain,
+      tags: payload.tags,
+      authority: payload.authority,
+      version: payload.version,
+      content: payload.content,
+      links: payload.links,
+    });
+    return { success: true, node };
+  });
+
+  safeHandle("okf:delete", (_event, payload: { id: string } | string) => {
+    const id = typeof payload === "string" ? payload : payload?.id;
+    if (!id) throw validationError("id is required");
+    const okf = orchestrator.getOkfStore();
+    const deleted = okf.deleteNode(id);
+    return { success: deleted, id };
+  });
+
+  safeHandle("okf:traverse", (_event, payload: { rootId: string; maxDepth?: number }) => {
+    if (!payload?.rootId) throw validationError("rootId is required");
+    const okf = orchestrator.getOkfStore();
+    const result = okf.traverseGraph(payload.rootId, payload.maxDepth ?? 1);
+    if (!result) return { success: false, message: `Node '${payload.rootId}' not found` };
+    return { success: true, ...result };
+  });
+
+  safeHandle("okf:search", async (_event, payload: { query: string; mode?: any; maxOkfNodes?: number; maxRagChunks?: number }) => {
+    if (!payload?.query) throw validationError("query is required");
+    const router = orchestrator.getHybridRouter();
+    const result = await router.route(payload.query, {
+      mode: payload.mode,
+      maxOkfNodes: payload.maxOkfNodes,
+      maxRagChunks: payload.maxRagChunks,
+    });
+    return { success: true, ...result };
+  });
+
+  safeHandle("okf:upload", async (_event, payload: { filename: string; content: string }) => {
+    if (!payload?.filename || !payload?.content) throw validationError("filename and content are required");
+    const okf = orchestrator.getOkfStore();
+    const node = await okf.ingestText(payload.content, payload.filename);
+    return { success: true, node };
+  });
+
+  safeHandle("okf:ingest-samples", async () => {
+    const okf = orchestrator.getOkfStore();
+    const vs = orchestrator.getVectorStore();
+    const sampleDir = resolveWorkspacePath("scratch/test-okf-docs");
+    const results: { okf: string[]; rag: string[] } = { okf: [], rag: [] };
+
+    const file1 = join(sampleDir, "order-processing-spec.md");
+    const file2 = join(sampleDir, "payment-retry-runbook.md");
+    const file3 = join(sampleDir, "inventory-reservation-spec.md");
+    const file4 = join(sampleDir, "incident_alpha_crash.txt");
+
+    if (existsSync(file1)) {
+      const node1 = await okf.ingestFile(file1);
+      results.okf.push(node1.id);
+    }
+    if (existsSync(file2)) {
+      const node2 = await okf.ingestFile(file2);
+      results.okf.push(node2.id);
+    }
+    if (existsSync(file3)) {
+      const node3 = await okf.ingestFile(file3);
+      results.okf.push(node3.id);
+    }
+    if (existsSync(file4)) {
+      const doc = await vs.ingestFile(file4);
+      results.rag.push(doc.name);
+    }
+
+    return {
+      success: true,
+      message: `Ingested ${results.okf.length} OKF nodes and ${results.rag.length} Vector RAG documents.`,
+      results,
+    };
+  });
+
+  safeHandle("okf:graph", () => {
+    const okf = orchestrator.getOkfStore();
+    const nodes = okf.listNodes();
+    const db = AgentDatabase.getInstance();
+    const edges = db.db.prepare("SELECT source_id, target_id, relation FROM okf_links").all();
+    return { success: true, nodes, edges };
+  });
+
+  safeHandle("okf:distill", async (_event, payload: any) => {
+    if (!payload?.rawText && !payload?.filePath) {
+      throw validationError("rawText or filePath is required for distillation");
+    }
+    const okf = orchestrator.getOkfStore();
+    const result = await okf.distillDocumentToOkf(payload);
+    return { success: true, ...result };
+  });
+
+  safeHandle("okf:verifyCodeLinks", (_event, payload?: { nodeId?: string }) => {
+    const okf = orchestrator.getOkfStore();
+    const report = okf.verifyCodeLinks(payload?.nodeId, process.cwd());
+    return { success: true, report };
   });
 
   // ─── 6.7 Sandbox Management IPC ─────────────────────────────────────

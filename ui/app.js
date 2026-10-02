@@ -379,11 +379,70 @@ if (window.electronAPI) {
 
       // 10. Knowledge Base & Sandbox & Tools
       if (pathname === "/api/kb/documents") {
+        if (method === "DELETE") {
+          const filename = url.searchParams.get("filename") || (body && body.filename);
+          const data = await window.electronAPI.kb.delete(filename);
+          return jsonResponse(data);
+        }
         const data = await window.electronAPI.kb.documents();
         return jsonResponse(data);
       }
       if (pathname === "/api/kb/upload") {
         const data = await window.electronAPI.kb.upload(body);
+        return jsonResponse(data);
+      }
+
+      // 10b. Open Knowledge Format (OKF) & Knowledge Graph IPC
+      if (pathname === "/api/okf/nodes") {
+        const filter = {
+          domain: url.searchParams.get("domain") || (body && body.domain) || undefined,
+          authority: url.searchParams.get("authority") || (body && body.authority) || undefined,
+          tag: url.searchParams.get("tag") || (body && body.tag) || undefined,
+        };
+        const data = await window.electronAPI.okf.nodes(filter);
+        return jsonResponse(data);
+      }
+      if (pathname === "/api/okf/node") {
+        const id = url.searchParams.get("id") || (body && body.id);
+        if (method === "DELETE") {
+          const data = await window.electronAPI.okf.delete(id);
+          return jsonResponse(data);
+        } else if (method === "POST" || method === "PUT") {
+          const data = await window.electronAPI.okf.save(body);
+          return jsonResponse(data);
+        } else {
+          const data = await window.electronAPI.okf.get(id);
+          return jsonResponse(data);
+        }
+      }
+      if (pathname === "/api/okf/traverse") {
+        const rootId = url.searchParams.get("rootId") || (body && body.rootId);
+        const maxDepth = Number(url.searchParams.get("maxDepth") || (body && body.maxDepth) || 1);
+        const data = await window.electronAPI.okf.traverse(rootId, maxDepth);
+        return jsonResponse(data);
+      }
+      if (pathname === "/api/okf/search") {
+        const data = await window.electronAPI.okf.search(body?.query || url.searchParams.get("query"), body || {});
+        return jsonResponse(data);
+      }
+      if (pathname === "/api/okf/upload") {
+        const data = await window.electronAPI.okf.upload(body);
+        return jsonResponse(data);
+      }
+      if (pathname === "/api/okf/ingest-samples") {
+        const data = await window.electronAPI.okf.ingestSamples();
+        return jsonResponse(data);
+      }
+      if (pathname === "/api/okf/graph") {
+        const data = await window.electronAPI.okf.graph();
+        return jsonResponse(data);
+      }
+      if (pathname === "/api/okf/distill") {
+        const data = await window.electronAPI.okf.distill(body);
+        return jsonResponse(data);
+      }
+      if (pathname === "/api/okf/verify-code-links") {
+        const data = await window.electronAPI.okf.verifyCodeLinks(body);
         return jsonResponse(data);
       }
       if (pathname === "/api/sandbox/files") {
@@ -559,21 +618,122 @@ function syncChatModeSelector() {
   const mode = sessionModes.get(currentSessionId) || "code";
   chatModeSelect.value = mode;
   chatModeSelect.title = (modeDescriptions[mode] || modeDescriptions.code) + ". Changes apply to the next message.";
+  if (typeof updateModeSuggestion === "function") {
+    updateModeSuggestion();
+  }
 }
 async function saveChatMode(sessionId, mode) {
   sessionModes.set(sessionId, mode);
   dirtySessionModes.add(sessionId);
   syncChatModeSelector();
   try {
-    const result = await window.electronAPI.sessions.setMode(sessionId, mode);
-    if (!result.success) throw new Error(result.error || "Unable to save chat mode");
-    return true;
+    if (window.electronAPI?.sessions?.setMode) {
+      await window.electronAPI.sessions.setMode(sessionId, mode);
+    }
   } catch (error) {
-    showToast(error.message, "error");
-    return false;
+    console.warn("Could not persist session mode to backend:", error);
   }
+  return true;
 }
 chatModeSelect.addEventListener("change", () => saveChatMode(currentSessionId, chatModeSelect.value));
+
+// ─── Intent Detection & Mode Suggestion ─────────────────────────────────
+
+/**
+ * Detect whether user text expresses intent to implement features, modify code/files,
+ * or execute commands/scripts.
+ */
+function detectImplementationOrExecutionIntent(text) {
+  if (!text || typeof text !== "string") return false;
+  const clean = text.trim();
+  if (!clean || clean.length < 3) return false;
+
+  // Pure informational queries to exclude (e.g. definitions, conceptual questions)
+  const isPureExplanation = /^(what (is|are|does)|why (is|are|does)|how (does|do|can|is)|tell me about|define|describe|explain to me|can you explain)\b/i.test(clean) &&
+    !/\b(in (my|this|our) (project|repo|codebase|file|code)|and (implement|execute|run|fix|edit|create|build))\b/i.test(clean) &&
+    !/^(how (can|do) i (run|execute|start|launch|compile|build)\b)/i.test(clean);
+
+  if (isPureExplanation) return false;
+
+  // 1. Direct CLI / command executions (e.g. npm start, git commit, python script.py)
+  if (/^\s*(npm|pnpm|yarn|npx|pip|pip3|poetry|cargo|docker|docker-compose|git|curl|wget)\s+[a-z0-9_-]+/i.test(clean)) return true;
+  if (/^\s*(python|python3|py|node|ts-node|deno|bun|bash|sh|powershell|cmd)\s+[\w\.\/\\-]+/i.test(clean)) return true;
+  if (/^\s*(\$|>)\s*(npm|yarn|pnpm|npx|python|node|cargo|git|run|pip)\b/i.test(clean)) return true;
+
+  // 2. Explicit execution requests
+  if (/\b(run|execute|start|launch)\b.{0,40}\b(the|this|that|my|a|an)?\s*(code|script|scripts|command|commands|tests?|server|app|build|process|terminal|query|queries|migration|migrations|benchmark)\b/i.test(clean)) return true;
+  if (/\b(run|execute)\s+(it|this|that|in terminal|in bash|in shell|locally)\b/i.test(clean)) return true;
+  if (/\b(run|execute)\s+[`"']?(npm|yarn|pnpm|npx|node|python|bash|sh|cargo|git|docker|pip|pytest|jest|vitest|playwright)\b/i.test(clean)) return true;
+
+  // 3. Explicit implementation / code-writing requests
+  if (/\b(implement|implementation of)\b/i.test(clean)) return true;
+  if (/^(can you |please )?(implement|code|build|scaffold|develop)\b/i.test(clean)) return true;
+
+  // 4. File / Code creation
+  if (/\b(create|make|write|generate|add|build|scaffold|develop)\b.{0,60}\b(file|files|component|components|script|scripts|program|code|endpoint|endpoints|api|route|routes|class|classes|function|functions|module|modules|package|page|pages|css|html|js|ts|python|button|ui|feature|features|service|services|database|db|migration|test|tests|branch|branches)\b/i.test(clean)) return true;
+
+  // 5. Code modification / bug fixing
+  if (/\b(edit|modify|update|change|refactor|rewrite|fix|repair|patch|debug)\b.{0,60}\b(file|files|code|function|functions|component|components|script|scripts|repository|repo|endpoint|endpoints|style|styles|css|html|service|services|bug|bugs|issue|issues|error|errors|test|tests|crash|problem|typo|package\.json|readme)\b/i.test(clean)) return true;
+
+  // 6. Code blocks or terminal commands inside fences
+  if (/```(bash|sh|zsh|powershell|cmd|python|javascript|typescript|js|ts|html|css|json|sql|c|cpp|rust|go)\b/i.test(clean)) {
+    if (/\b(run|execute|implement|test|apply|add|fix)\b/i.test(clean) || /^\s*```(bash|sh|zsh|powershell|cmd)\b/i.test(clean)) return true;
+  }
+
+  return false;
+}
+
+const modeSuggestionPill = document.getElementById("mode-suggestion-pill");
+const btnSwitchAgentSuggestion = document.getElementById("btn-switch-agent-suggestion");
+const btnDismissAgentSuggestion = document.getElementById("btn-dismiss-agent-suggestion");
+let suggestionDismissedForText = "";
+
+function updateModeSuggestion() {
+  if (!modeSuggestionPill) return;
+  const currentMode = sessionModes.get(currentSessionId) || chatModeSelect?.value || "code";
+  const val = userInput?.value || "";
+
+  if (currentMode === "code" || currentMode === "agent" || !val.trim() || val.trim() === suggestionDismissedForText) {
+    modeSuggestionPill.classList.add("hidden");
+    modeSuggestionPill.style.display = "none";
+    return;
+  }
+
+  if (detectImplementationOrExecutionIntent(val)) {
+    modeSuggestionPill.classList.remove("hidden");
+    modeSuggestionPill.style.display = "flex";
+  } else {
+    modeSuggestionPill.classList.add("hidden");
+    modeSuggestionPill.style.display = "none";
+  }
+}
+
+if (btnSwitchAgentSuggestion) {
+  btnSwitchAgentSuggestion.addEventListener("click", async () => {
+    sessionModes.set(currentSessionId, "code");
+    dirtySessionModes.add(currentSessionId);
+    chatModeSelect.value = "code";
+    syncChatModeSelector();
+    await saveChatMode(currentSessionId, "code").catch(() => {});
+    showToast("Switched to ⚡ Agent mode", "info");
+    if (modeSuggestionPill) {
+      modeSuggestionPill.classList.add("hidden");
+      modeSuggestionPill.style.display = "none";
+    }
+    userInput?.focus();
+  });
+}
+
+if (btnDismissAgentSuggestion) {
+  btnDismissAgentSuggestion.addEventListener("click", () => {
+    suggestionDismissedForText = userInput?.value?.trim() || "";
+    if (modeSuggestionPill) {
+      modeSuggestionPill.classList.add("hidden");
+      modeSuggestionPill.style.display = "none";
+    }
+  });
+}
+
 syncChatModeSelector();
 
 // Knowledge Base Elements
@@ -583,6 +743,19 @@ const btnBrowseKb = document.getElementById("btn-browse-kb");
 const btnRefreshKb = document.getElementById("btn-refresh-kb");
 const kbTableBody = document.getElementById("kb-table-body");
 const kbTagline = document.getElementById("kb-tagline");
+
+// OKF Knowledge Graph Elements
+const okfTableBody = document.getElementById("okf-table-body");
+const kbStatOkfNodes = document.getElementById("kb-stat-okf-nodes");
+const kbStatRagDocs = document.getElementById("kb-stat-rag-docs");
+const kbStatRagChunks = document.getElementById("kb-stat-rag-chunks");
+const okfFilterSearch = document.getElementById("okf-filter-search");
+const okfFilterAuthority = document.getElementById("okf-filter-authority");
+const okfNodeModal = document.getElementById("okf-node-modal");
+const okfModalClose = document.getElementById("okf-modal-close");
+const btnUploadOkfSpec = document.getElementById("btn-upload-okf-spec");
+const okfFileInput = document.getElementById("okf-file-input");
+const okfModalCopyMd = document.getElementById("okf-modal-copy-md");
 
 // Artifacts & Sandbox Elements
 const artifactsGrid = document.getElementById("artifacts-grid");
@@ -3478,6 +3651,8 @@ function switchTab(targetId) {
   }
 }
 
+window.switchTab = switchTab;
+
 navItems.forEach((item) => {
   item.addEventListener("click", () => switchTab(item.dataset.tab));
 });
@@ -3487,7 +3662,7 @@ navItems.forEach((item) => {
 const settingsModal = document.getElementById("settings-modal");
 const settingsModalClose = document.getElementById("settings-modal-close");
 
-function openSettingsModal() {
+function openSettingsModal(defaultTabId = null) {
   loadGeneralSettingsAndDossier();
   populateSettings();
   loadSkills();
@@ -3495,10 +3670,15 @@ function openSettingsModal() {
   loadSecuritySettings();
   loadConnectors();
   loadSystemConfig();
+
   settingsModal.classList.remove("hidden");
   // Force reflow so the transition triggers
   void settingsModal.offsetWidth;
   settingsModal.classList.add("visible");
+
+  if (defaultTabId && typeof switchSettingsTab === "function") {
+    switchSettingsTab(defaultTabId);
+  }
 
   const btnSidebarSettings = document.getElementById("btn-sidebar-settings");
   if (btnSidebarSettings) btnSidebarSettings.classList.add("active");
@@ -5403,9 +5583,85 @@ if (btnSidebarSettings) {
   btnSidebarSettings.addEventListener("click", () => openSettingsModal());
 }
 
-// Provider pill opens settings modal
+function openModelsAndReasoningSettings(focusTarget = "provider") {
+  openSettingsModal("tab-settings-models");
+  if (typeof switchSettingsTab === "function") {
+    switchSettingsTab("tab-settings-models");
+  }
+
+  setTimeout(() => {
+    document.querySelectorAll(".settings-tab-btn").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.settingsTab === "tab-settings-models");
+    });
+    document.querySelectorAll(".settings-tab-pane").forEach((pane) => {
+      pane.classList.toggle("active", pane.id === "tab-settings-models");
+    });
+    if (settingsViewTitle) settingsViewTitle.textContent = "Models & Reasoning";
+    if (settingsViewDesc) settingsViewDesc.textContent = "Configure active AI providers, reasoning models, and vector embedding options.";
+
+    if (focusTarget === "embedding") {
+      const selectEmb = document.getElementById("select-embedding-provider");
+      if (selectEmb) {
+        selectEmb.scrollIntoView({ behavior: "smooth", block: "center" });
+        selectEmb.focus();
+      }
+    } else if (focusTarget === "model") {
+      const selectMod = document.getElementById("select-model");
+      if (selectMod) {
+        selectMod.scrollIntoView({ behavior: "smooth", block: "center" });
+        selectMod.focus();
+      }
+    } else {
+      const selectProv = document.getElementById("select-provider");
+      if (selectProv) {
+        selectProv.scrollIntoView({ behavior: "smooth", block: "center" });
+        selectProv.focus();
+      }
+    }
+  }, 60);
+}
+
+// Provider pill opens settings modal directly to Models & Reasoning
 if (sidebarProviderPill) {
-  sidebarProviderPill.addEventListener("click", () => openSettingsModal());
+  sidebarProviderPill.addEventListener("click", (e) => {
+    const isEmbeddingClick = e.target && (e.target.id === "embedding-name" || e.target.closest("#embedding-name"));
+    openModelsAndReasoningSettings(isEmbeddingClick ? "embedding" : "provider");
+  });
+
+  sidebarProviderPill.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      openModelsAndReasoningSettings("provider");
+    }
+  });
+}
+
+if (providerNameBadge) {
+  providerNameBadge.addEventListener("click", (e) => {
+    e.stopPropagation();
+    openModelsAndReasoningSettings("provider");
+  });
+}
+
+if (embeddingNameBadge) {
+  embeddingNameBadge.addEventListener("click", (e) => {
+    e.stopPropagation();
+    openModelsAndReasoningSettings("embedding");
+  });
+}
+
+// Active Reasoning Model badge in topbar also opens settings directly to Models & Reasoning
+if (modelBadge) {
+  modelBadge.addEventListener("click", () => {
+    openModelsAndReasoningSettings("model");
+  });
+
+  modelBadge.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      openModelsAndReasoningSettings("model");
+    }
+  });
 }
 
 // Close button
@@ -6162,6 +6418,11 @@ function renderPluginIcon(iconStr, size = 20) {
   }
   return escapeHtmlStr(s);
 }
+
+function showToast(message, type = "info") {
+  showPluginToast(message, type === "error");
+}
+window.showToast = showToast;
 
 function showPluginToast(message, isError = false) {
   let toast = document.getElementById("plugin-toast");
@@ -8655,6 +8916,7 @@ function showThemedConfirm({
   message = "Are you sure you want to proceed?",
   confirmText = "Delete",
   cancelText = "Cancel",
+  secondaryText = null,
   icon = "🗑️",
   danger = true,
 } = {}) {
@@ -8665,6 +8927,7 @@ function showThemedConfirm({
     const titleEl = document.getElementById("confirm-modal-title");
     const descEl = document.getElementById("confirm-modal-desc");
     const btnCancel = document.getElementById("confirm-btn-cancel");
+    const btnSecondary = document.getElementById("confirm-btn-secondary");
     const btnAction = document.getElementById("confirm-btn-action");
 
     if (!modal || !btnAction || !btnCancel) {
@@ -8682,6 +8945,15 @@ function showThemedConfirm({
     btnAction.textContent = confirmText;
     btnAction.className = "btn confirm-btn-action " + (danger ? "btn-danger" : "btn-primary");
 
+    if (btnSecondary) {
+      if (secondaryText) {
+        btnSecondary.textContent = secondaryText;
+        btnSecondary.style.display = "";
+      } else {
+        btnSecondary.style.display = "none";
+      }
+    }
+
     let isResolved = false;
     const cleanup = (result) => {
       if (isResolved) return;
@@ -8689,9 +8961,11 @@ function showThemedConfirm({
       modal.classList.remove("visible");
       setTimeout(() => {
         modal.classList.add("hidden");
+        if (btnSecondary) btnSecondary.style.display = "none";
       }, 180);
       document.removeEventListener("keydown", onKeyDown);
       btnCancel.onclick = null;
+      if (btnSecondary) btnSecondary.onclick = null;
       btnAction.onclick = null;
       modal.onclick = null;
       resolve(result);
@@ -8704,10 +8978,16 @@ function showThemedConfirm({
       } else if (e.key === "Enter" && document.activeElement === btnAction) {
         e.preventDefault();
         cleanup(true);
+      } else if (e.key === "Enter" && btnSecondary && document.activeElement === btnSecondary) {
+        e.preventDefault();
+        cleanup("secondary");
       }
     };
 
     btnCancel.onclick = () => cleanup(false);
+    if (btnSecondary && secondaryText) {
+      btnSecondary.onclick = () => cleanup("secondary");
+    }
     btnAction.onclick = () => cleanup(true);
     modal.onclick = (e) => {
       if (e.target === modal) cleanup(false);
@@ -8718,11 +8998,274 @@ function showThemedConfirm({
     modal.classList.remove("hidden");
     void modal.offsetWidth;
     modal.classList.add("visible");
-    btnCancel.focus();
+    if (danger) {
+      btnCancel.focus();
+    } else {
+      btnAction.focus();
+    }
   });
 }
 
-// ─── Direct In-Chat Artifact Viewer ─────────────────────────────────
+// ─── Direct In-Chat Artifact Viewer & Deliverables Listing ───────────
+
+/**
+ * Test whether a text string specifically mentions an artifact filename as an affirmative deliverable.
+ * Avoids partial/substring false positives and ignores negation/error phrasing (e.g. "could not be found").
+ */
+function isArtifactSpecificallyMentioned(text, filename) {
+  if (!text || !filename || typeof text !== "string" || typeof filename !== "string") return false;
+  const cleanName = filename.trim();
+  if (cleanName.length < 3) return false;
+
+  const lowerText = text.toLowerCase();
+  const lowerName = cleanName.toLowerCase();
+  if (!lowerText.includes(lowerName)) return false;
+
+  // Negative checks: if the text says file could not be found, missing, or failed, do NOT match
+  const negationPattern = new RegExp(
+    `(?:could not (?:be )?(?:located|found|find)|not found|cannot find|unable to find|does not exist|failed to (?:locate|find)|missing|delete|remove)\\b[^\n]*${cleanName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}|` +
+    `${cleanName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[^\n]*(?:could not (?:be )?(?:located|found|find)|not found|cannot find|unable to find|does not exist|failed to (?:locate|find)|missing)`,
+    "i"
+  );
+  if (negationPattern.test(text)) return false;
+
+  const escapedName = cleanName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = new RegExp(
+    `(?:^|[\\s\`'"(\\[/\\\\<])(?:artifacts[\\/\\\\])?${escapedName}(?:[\\s\`'")\\]\\.,;:!?><]|$)`,
+    "i"
+  );
+  return pattern.test(text);
+}
+
+/**
+ * Test whether a user prompt specifically commands to view/open/show a particular artifact file.
+ * E.g. "show newton_raphson_explainer.png", "open chart.png", "preview my_plot.svg"
+ */
+function isUserRequestingArtifactView(userText, filename) {
+  if (!userText || !filename || typeof userText !== "string" || typeof filename !== "string") return false;
+  const t = userText.toLowerCase().trim();
+  const cleanName = filename.toLowerCase().trim();
+
+  // Guard: if user is complaining, deleting, reporting an issue, or pasting logs, never treat as a view command
+  if (/\b(delete|remove|unlink|why|error|bug|issue|prevent|random|popup|pop's up|problem|fail|cannot|could not|fix|located)\b/i.test(t)) {
+    return false;
+  }
+
+  const escapedName = cleanName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const viewPattern = new RegExp(
+    `(?:^|\\b)(?:show|display|view|open|preview|render|load)\\s+(?:the\\s+)?(?:artifact|file|deliverable|image|video|chart|plot)?\\s*[\`'"]?(?:artifacts[\\/\\\\])?${escapedName}[\`'"]?(?:\\b|$)`,
+    "i"
+  );
+  return viewPattern.test(t);
+}
+
+/**
+ * Test whether a user prompt is specifically asking to list, show, or inspect all artifacts/deliverables.
+ */
+function isExplicitArtifactListRequest(userText) {
+  if (!userText || typeof userText !== "string") return false;
+  const t = userText.toLowerCase().trim();
+
+  // Guard against discussion, bug reports, and meta questions about artifacts
+  if (/\b(improve|fix|why|error|bug|issue|prevent|random|popup|pop's up|stop|remove|delete)\b/i.test(t)) {
+    return false;
+  }
+
+  if (
+    /^(show|list|view|display|get)\s+(all\s+)?(my\s+)?(artifacts|deliverables|generated files|saved files)\b/i.test(t) ||
+    /^what\s+(artifacts|deliverables)(\s+are\s+there|\s+do\s+i\s+have|\s+were\s+created|\s+exist)?\b/i.test(t) ||
+    /^(show|list)\s+artifacts$/i.test(t) ||
+    t === "artifacts" ||
+    t === "/artifacts" ||
+    t === "deliverables"
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Render a polished, compact In-Chat Artifacts Listing card.
+ * Used when the user explicitly requests to see or list deliverables/artifacts.
+ */
+async function renderInChatArtifactsListing(blockElement, options = {}) {
+  if (!blockElement) return;
+
+  const alreadyRendered = blockElement.querySelector(".inchat-artifacts-listing-card");
+  if (alreadyRendered) return;
+
+  let files = options.files;
+  if (!files) {
+    try {
+      const artRes = await fetch("/api/artifacts/files");
+      if (artRes.ok) {
+        const artData = await artRes.json();
+        files = artData.files || [];
+      } else {
+        files = [];
+      }
+    } catch {
+      files = [];
+    }
+  }
+
+  const card = document.createElement("div");
+  card.className = "inchat-artifacts-listing-card";
+
+  const totalCount = files.length;
+  const countBadge = `<span class="inchat-artifacts-listing-count">${totalCount} ${totalCount === 1 ? "deliverable" : "deliverables"}</span>`;
+
+  let contentHtml = "";
+  if (totalCount === 0) {
+    contentHtml = `
+      <div class="inchat-artifacts-empty-state">
+        <div style="font-size: 28px; margin-bottom: 6px;">📦</div>
+        <div style="font-weight: 600; color: var(--text-main); margin-bottom: 4px;">No artifacts generated yet</div>
+        <div style="font-size: 11.5px; color: var(--text-dim); max-width: 380px; margin: 0 auto;">
+          When Python scripts or tools create plots, images, datasets, or reports, they will be saved to <code>artifacts/</code> and cataloged here.
+        </div>
+      </div>
+    `;
+  } else {
+    // Sort files by date descending (newest first)
+    const sortedFiles = [...files].sort((a, b) => new Date(b.modifiedAt || 0).getTime() - new Date(a.modifiedAt || 0).getTime());
+
+    let imgCount = 0;
+    let mediaCount = 0;
+    let codeCount = 0;
+
+    const rowsHtml = sortedFiles.map((f) => {
+      const ext = "." + (f.name || "").split(".").pop().toLowerCase();
+      const isImg = [".png", ".jpg", ".jpeg", ".svg", ".webp", ".gif"].includes(ext);
+      const isVid = [".mp4", ".webm", ".mov"].includes(ext);
+      const isAud = [".mp3", ".wav", ".m4a"].includes(ext);
+      const isCsv = [".csv", ".tsv"].includes(ext);
+      const isCode = [".py", ".js", ".ts", ".json", ".sql", ".html", ".sh", ".md", ".txt"].includes(ext);
+
+      let category = "code";
+      let icon = "📄";
+      if (isImg) {
+        icon = "🖼️";
+        category = "image";
+        imgCount++;
+      } else if (isVid) {
+        icon = "🎬";
+        category = "media";
+        mediaCount++;
+      } else if (isAud) {
+        icon = "🎵";
+        category = "media";
+        mediaCount++;
+      } else {
+        if (isCsv) icon = "📊";
+        else if (ext === ".py") icon = "🐍";
+        else if (ext === ".json") icon = "📦";
+        category = "code";
+        codeCount++;
+      }
+
+      const fileUrl = `/api/artifacts/file?name=${encodeURIComponent(f.name)}`;
+      const sizeStr = f.sizeBytes ? formatFileSize(f.sizeBytes) : "—";
+      const dateStr = f.modifiedAt ? new Date(f.modifiedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
+
+      let previewAction = "";
+      if (isImg) {
+        const safeTitle = escapeHtmlStr(f.name).replace(/'/g, "\\'");
+        previewAction = `<button type="button" class="inchat-artifact-btn primary" onclick="openLightbox('${fileUrl}', '${safeTitle}')" title="Preview Image">👁 Preview</button>`;
+      } else if (isVid) {
+        previewAction = `<button type="button" class="inchat-artifact-btn primary" onclick="openVideoModal('${fileUrl}', '${escapeHtmlStr(f.name)}', false)" title="Play Video">▶ Play</button>`;
+      } else if (isAud) {
+        previewAction = `<button type="button" class="inchat-artifact-btn primary" onclick="openAudioModal('${fileUrl}', '${escapeHtmlStr(f.name)}', false)" title="Play Audio">▶ Play</button>`;
+      } else if (isCode || isCsv) {
+        previewAction = `<button type="button" class="inchat-artifact-btn primary" onclick="viewArtifactCode('${encodeURIComponent(f.name)}')" title="View File">👁 View</button>`;
+      }
+
+      return `
+        <tr data-category="${category}">
+          <td>
+            <div class="inchat-artifacts-item-name" title="${escapeHtmlStr(f.name)}" onclick="${isImg ? `openLightbox('${fileUrl}', '${escapeHtmlStr(f.name).replace(/'/g, "\\'")}')` : (isCode || isCsv) ? `viewArtifactCode('${encodeURIComponent(f.name)}')` : `window.open('${fileUrl}', '_blank')`}">
+              <span style="font-size: 15px;">${icon}</span>
+              <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 260px;">${escapeHtmlStr(f.name)}</span>
+            </div>
+          </td>
+          <td style="color: var(--text-dim); font-size: 11px; white-space: nowrap;">${sizeStr}</td>
+          <td style="color: var(--text-dim); font-size: 11px; white-space: nowrap;">${dateStr}</td>
+          <td style="text-align: right; white-space: nowrap;">
+            <div style="display: inline-flex; align-items: center; gap: 4px;">
+              ${previewAction}
+              <a href="${fileUrl}" download="${escapeHtmlStr(f.name)}" class="inchat-artifact-btn" title="Download File">⬇</a>
+              <a href="${fileUrl}" target="_blank" class="inchat-artifact-btn" title="Open in New Tab">↗</a>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join("");
+
+    const filterBarHtml = totalCount > 1 ? `
+      <div class="inchat-artifacts-filter-bar">
+        <button type="button" class="inchat-artifacts-filter-btn active" data-filter="all">All (${totalCount})</button>
+        ${imgCount > 0 ? `<button type="button" class="inchat-artifacts-filter-btn" data-filter="image">🖼️ Images (${imgCount})</button>` : ""}
+        ${mediaCount > 0 ? `<button type="button" class="inchat-artifacts-filter-btn" data-filter="media">🎬 Media (${mediaCount})</button>` : ""}
+        ${codeCount > 0 ? `<button type="button" class="inchat-artifacts-filter-btn" data-filter="code">📄 Code & Docs (${codeCount})</button>` : ""}
+      </div>
+    ` : "";
+
+    contentHtml = `
+      ${filterBarHtml}
+      <div style="max-height: 280px; overflow-y: auto;">
+        <table class="inchat-artifacts-table">
+          <thead>
+            <tr>
+              <th>File</th>
+              <th>Size</th>
+              <th>Date</th>
+              <th style="text-align: right;">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  card.innerHTML = `
+    <div class="inchat-artifacts-listing-header">
+      <div class="inchat-artifacts-listing-title-group">
+        <span style="font-size: 18px;">📦</span>
+        <span class="inchat-artifacts-listing-title">Artifacts & Deliverables</span>
+        ${countBadge}
+      </div>
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <button type="button" class="inchat-artifact-btn primary" onclick="if(window.switchTab) window.switchTab('tab-sandbox');" title="Open Full Artifacts Gallery View">
+          📂 Open Gallery
+        </button>
+        <button type="button" class="inchat-artifacts-close-btn" title="Dismiss" onclick="this.closest('.inchat-artifacts-listing-card').remove();">✕</button>
+      </div>
+    </div>
+    ${contentHtml}
+  `;
+
+  // Attach filter event listener
+  card.querySelectorAll(".inchat-artifacts-filter-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      card.querySelectorAll(".inchat-artifacts-filter-btn").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      const filter = btn.getAttribute("data-filter");
+      card.querySelectorAll("tbody tr").forEach((tr) => {
+        if (filter === "all" || tr.getAttribute("data-category") === filter) {
+          tr.style.display = "";
+        } else {
+          tr.style.display = "none";
+        }
+      });
+    });
+  });
+
+  mountCardToSlot(blockElement, card, "after-body");
+  scrollToBottom();
+}
 
 async function renderInChatArtifactCard(blockElement, artifactInfo) {
   if (!blockElement || !artifactInfo) return;
@@ -9028,7 +9571,7 @@ function dispatchPluginChatUI(blockElement, toolName, result) {
   }
 
   // 2. Direct In-Chat Artifact Deliverable Viewer (Triggered when an artifact is created or explicitly targeted)
-  if (result.ui_type === "artifact" || result.artifactName || (result.savedTo && result.url)) {
+  if (!result.error && result.success !== false && (result.ui_type === "artifact" || result.artifactName || (result.savedTo && result.url))) {
     renderInChatArtifactCard(blockElement, result);
     return;
   }
@@ -9993,48 +10536,1197 @@ window.copyPromptText = function (btn) {
   });
 };
 
-// ─── Knowledge Base Manager ─────────────────────────────────────────
+// ─── Knowledge Base Manager (Tier 1 OKF Graph + Tier 2 Vector RAG) ─
+
+let currentOkfNodes = [];
+let currentKbDocuments = [];
 
 async function loadKnowledgeBase() {
   try {
-    const res = await fetch("/api/kb/documents");
-    if (!res.ok) return;
-    const data = await res.json();
+    const [okfRes, kbRes] = await Promise.all([
+      fetch("/api/okf/nodes").catch(() => null),
+      fetch("/api/kb/documents").catch(() => null),
+    ]);
 
+    let okfNodes = [];
+    if (okfRes && okfRes.ok) {
+      const okfData = await okfRes.json();
+      okfNodes = okfData.nodes || [];
+    }
+    currentOkfNodes = okfNodes;
+
+    let kbDocs = [];
+    let kbStats = { totalChunks: 0 };
+    if (kbRes && kbRes.ok) {
+      const kbData = await kbRes.json();
+      kbDocs = kbData.documents || [];
+      kbStats = kbData.stats || { totalChunks: 0 };
+    }
+    currentKbDocuments = kbDocs;
+
+    // 1. Update stats overview pills
+    if (kbStatOkfNodes) {
+      kbStatOkfNodes.textContent = `${okfNodes.length} ${okfNodes.length === 1 ? "node" : "nodes"}`;
+    }
+    if (kbStatRagDocs) {
+      kbStatRagDocs.textContent = `${kbDocs.length} ${kbDocs.length === 1 ? "document" : "documents"}`;
+    }
+    if (kbStatRagChunks) {
+      kbStatRagChunks.textContent = `${(kbStats.totalChunks || 0).toLocaleString()} chunks embedded`;
+    }
     if (kbCountBadge) {
-      kbCountBadge.textContent = (data.documents && data.documents.length) || 0;
+      kbCountBadge.textContent = okfNodes.length + kbDocs.length;
     }
 
-    if (!data.documents || data.documents.length === 0) {
-      kbTableBody.innerHTML = `
+    // 2. Render Tier 1 OKF Table
+    filterAndRenderOkfTable();
+
+    // 3. Render Tier 2 Vector RAG Table
+    renderKbTable(kbDocs);
+  } catch (err) {
+    console.error("[KnowledgeBase] Error loading knowledge base:", err);
+    if (okfTableBody) {
+      okfTableBody.innerHTML = `<tr><td colspan="6" style="color: var(--danger); padding: 16px;">Failed to load OKF nodes: ${err.message}</td></tr>`;
+    }
+    if (kbTableBody) {
+      kbTableBody.innerHTML = `<tr><td colspan="5" style="color: var(--danger); padding: 16px;">Failed to load documents: ${err.message}</td></tr>`;
+    }
+  }
+}
+
+function filterAndRenderOkfTable() {
+  if (!okfTableBody) return;
+  const search = (okfFilterSearch?.value || "").toLowerCase().trim();
+  const authFilter = (okfFilterAuthority?.value || "").toLowerCase().trim();
+
+  const filtered = currentOkfNodes.filter((node) => {
+    if (authFilter && (node.authority || "").toLowerCase() !== authFilter) {
+      return false;
+    }
+    if (!search) return true;
+    const matchesId = (node.id || "").toLowerCase().includes(search);
+    const matchesTitle = (node.title || "").toLowerCase().includes(search);
+    const matchesDomain = (node.domain || "").toLowerCase().includes(search);
+    const matchesTags = (node.tags || []).some((t) => t.toLowerCase().includes(search));
+    return matchesId || matchesTitle || matchesDomain || matchesTags;
+  });
+
+  if (filtered.length === 0) {
+    okfTableBody.innerHTML = `
+      <tr>
+        <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 32px;">
+          ${currentOkfNodes.length === 0
+            ? 'No OKF Canonical nodes ingested yet. Upload specification files above to build the knowledge graph.'
+            : 'No OKF nodes match your search criteria.'}
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  okfTableBody.innerHTML = filtered
+    .map((node) => {
+      const auth = (node.authority || "canonical").toLowerCase();
+      const authClass = auth === "canonical" ? "okf-authority-canonical" : auth === "authoritative" ? "okf-authority-authoritative" : "okf-authority-supplemental";
+      const tagsHtml = (node.tags || [])
+        .map((t) => `<span class="okf-tag-chip">${escapeHtmlStr(t)}</span>`)
+        .join("");
+      const linksCount = node.linkCount ?? node.links?.length ?? 0;
+      const linksBadge = linksCount > 0
+        ? `<span class="nav-badge" style="margin: 0; background: rgba(99, 102, 241, 0.15); color: #818cf8; cursor: pointer;" onclick="viewOkfNode('${encodeURIComponent(node.id)}')">🔗 ${linksCount} ${linksCount === 1 ? "link" : "links"}</span>`
+        : `<span style="color: var(--text-dim); font-size: 12px;">None</span>`;
+
+      return `
         <tr>
-          <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 32px;">
-            No documents ingested yet. Upload a file above to enable RAG semantic search.
+          <td>
+            <div style="font-weight: 700; color: var(--text-main); font-family: var(--font-mono, monospace); font-size: 13px;">
+              🧠 ${escapeHtmlStr(node.id)}
+            </div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
+              ${escapeHtmlStr(node.title || "")}
+            </div>
+          </td>
+          <td>
+            <span class="okf-authority-badge ${authClass}">${escapeHtmlStr(auth)}</span>
+          </td>
+          <td>
+            <span style="font-size: 12px; color: var(--text-main); font-weight: 500;">📁 ${escapeHtmlStr(node.domain || "general")}</span>
+          </td>
+          <td>
+            <div style="display: flex; flex-wrap: wrap; gap: 2px; max-width: 220px;">
+              ${tagsHtml || '<span style="color: var(--text-dim); font-size: 12px;">—</span>'}
+            </div>
+          </td>
+          <td>${linksBadge}</td>
+          <td style="text-align: right; white-space: nowrap;">
+            <button class="btn btn-secondary btn-xs" onclick="viewOkfNode('${encodeURIComponent(node.id)}')" style="margin-right: 6px;">👁️ Inspect</button>
+            <button class="btn btn-danger btn-xs" onclick="deleteOkfNode('${encodeURIComponent(node.id)}')">🗑 Delete</button>
           </td>
         </tr>
       `;
+    })
+    .join("");
+}
+
+function renderKbTable(docs) {
+  if (!kbTableBody) return;
+  if (!docs || docs.length === 0) {
+    kbTableBody.innerHTML = `
+      <tr>
+        <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 32px;">
+          No documents ingested yet. Upload a file above to enable RAG semantic search.
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  kbTableBody.innerHTML = docs
+    .map((doc) => {
+      const date = new Date(doc.ingestedAt).toLocaleString();
+      const escapedName = encodeURIComponent(doc.name);
+      return `
+      <tr>
+        <td><strong>📄 ${escapeHtmlStr(doc.name)}</strong></td>
+        <td><span class="nav-badge" style="margin: 0;">${doc.chunkCount} chunks</span></td>
+        <td>${(doc.totalCharacters || 0).toLocaleString()} chars</td>
+        <td style="color: var(--text-dim); font-size: 12px;">${date}</td>
+        <td style="text-align: right;">
+          <button class="btn btn-danger btn-sm" onclick="deleteDocument('${escapedName}')">🗑 Delete</button>
+        </td>
+      </tr>`;
+    })
+    .join("");
+}
+
+window.viewOkfNode = async function(encodedId) {
+  const nodeId = decodeURIComponent(encodedId);
+  try {
+    const res = await fetch(`/api/okf/node?id=${encodeURIComponent(nodeId)}`);
+    const data = await res.json().catch(() => ({}));
+    
+    if (!res.ok || !data.success || !data.node) {
+      // Graceful Unresolved / Ghost Target Link Handling
+      const modalNodeId = document.getElementById("okf-modal-node-id");
+      const modalTitle = document.getElementById("okf-modal-title");
+      const modalAuth = document.getElementById("okf-modal-authority");
+      const modalDomain = document.getElementById("okf-modal-domain");
+      const modalTags = document.getElementById("okf-modal-tags");
+      const modalVersion = document.getElementById("okf-modal-version");
+      const modalLinksCount = document.getElementById("okf-modal-links-count");
+      const modalLinksContainer = document.getElementById("okf-modal-links-container");
+      const modalContent = document.getElementById("okf-modal-content");
+
+      if (modalNodeId) modalNodeId.textContent = nodeId;
+      if (modalTitle) modalTitle.textContent = "Unresolved Target Link (Ghost Node)";
+      if (modalAuth) {
+        modalAuth.textContent = "unresolved";
+        modalAuth.className = "okf-authority-badge okf-authority-experimental";
+      }
+      if (modalDomain) modalDomain.textContent = "unresolved";
+      if (modalTags) modalTags.textContent = "stub, linked-target";
+      if (modalVersion) modalVersion.textContent = "—";
+      if (modalLinksCount) modalLinksCount.textContent = 0;
+      if (modalLinksContainer) {
+        modalLinksContainer.innerHTML = `<span style="font-size: 12px; color: var(--text-dim);">This node is referenced by other graph nodes but has not yet been authored in the database.</span>`;
+      }
+      if (modalContent) {
+        modalContent.textContent = `⚠️ Unresolved Node Reference: ${nodeId}\n\nThis knowledge node is referenced by outbound graph links or invariant specs but is not yet populated in the database.\n\nYou can click "Auto-Distill" to generate this node from a specification or document.`;
+      }
+
+      if (okfNodeModal) {
+        okfNodeModal.classList.remove("hidden");
+        void okfNodeModal.offsetWidth;
+        okfNodeModal.classList.add("visible");
+      }
       return;
     }
 
-    kbTableBody.innerHTML = data.documents
-      .map((doc) => {
-        const date = new Date(doc.ingestedAt).toLocaleString();
-        const escapedName = encodeURIComponent(doc.name);
-        return `
-        <tr>
-          <td><strong>📄 ${doc.name}</strong></td>
-          <td><span class="nav-badge" style="margin: 0;">${doc.chunkCount} chunks</span></td>
-          <td>${(doc.totalCharacters || 0).toLocaleString()} chars</td>
-          <td style="color: var(--text-dim); font-size: 12px;">${date}</td>
-          <td style="text-align: right;">
-            <button class="btn btn-danger btn-sm" onclick="deleteDocument('${escapedName}')">🗑 Delete</button>
-          </td>
-        </tr>`;
+    const node = data.node;
+
+    const modalNodeId = document.getElementById("okf-modal-node-id");
+    const modalTitle = document.getElementById("okf-modal-title");
+    const modalAuth = document.getElementById("okf-modal-authority");
+    const modalDomain = document.getElementById("okf-modal-domain");
+    const modalTags = document.getElementById("okf-modal-tags");
+    const modalVersion = document.getElementById("okf-modal-version");
+    const modalLinksCount = document.getElementById("okf-modal-links-count");
+    const modalLinksContainer = document.getElementById("okf-modal-links-container");
+    const modalContent = document.getElementById("okf-modal-content");
+
+    if (modalNodeId) modalNodeId.textContent = node.id;
+    if (modalTitle) modalTitle.textContent = node.title || "";
+    if (modalAuth) {
+      const auth = (node.authority || "canonical").toLowerCase();
+      modalAuth.textContent = auth;
+      modalAuth.className = `okf-authority-badge ${auth === "canonical" ? "okf-authority-canonical" : auth === "authoritative" ? "okf-authority-authoritative" : "okf-authority-supplemental"}`;
+    }
+    if (modalDomain) modalDomain.textContent = node.domain || "general";
+    if (modalTags) modalTags.textContent = (node.tags || []).join(", ") || "none";
+    if (modalVersion) modalVersion.textContent = node.version || "1.0.0";
+    if (modalLinksCount) modalLinksCount.textContent = node.links?.length || 0;
+
+    if (modalLinksContainer) {
+      if (!node.links || node.links.length === 0) {
+        modalLinksContainer.innerHTML = `<span style="font-size: 12px; color: var(--text-dim);">No outbound relations defined in this node.</span>`;
+      } else {
+        modalLinksContainer.innerHTML = node.links
+          .map((link) => {
+            const targetId = link.targetId || link.target || "";
+            const rel = link.relation || link.rel || "relates_to";
+            return `
+              <button type="button" class="okf-link-chip" onclick="viewOkfNode('${encodeURIComponent(targetId)}')">
+                <span class="okf-link-rel">${escapeHtmlStr(rel)}</span>
+                <span>👉 ${escapeHtmlStr(targetId)}</span>
+              </button>
+            `;
+          })
+          .join("");
+      }
+    }
+
+    if (modalContent) {
+      modalContent.textContent = node.rawMarkdown || node.content || "(Empty content)";
+    }
+
+    if (okfNodeModal) {
+      okfNodeModal.classList.remove("hidden");
+      void okfNodeModal.offsetWidth;
+      okfNodeModal.classList.add("visible");
+    }
+  } catch (err) {
+    showToast(`Failed to inspect OKF node: ${err.message}`, "error");
+  }
+};
+
+window.deleteOkfNode = async function(encodedId) {
+  const nodeId = decodeURIComponent(encodedId).trim();
+  if (!nodeId) return;
+
+  const confirmed = await showThemedConfirm({
+    title: "Delete OKF Knowledge Node",
+    message: `Permanently delete canonical node "${nodeId}" from the OKF Knowledge Graph?`,
+    confirmText: "Delete Node",
+    icon: "🧠",
+    danger: true,
+  });
+  if (confirmed) {
+    try {
+      // Optimistic local state update
+      currentOkfNodes = currentOkfNodes.filter((n) => (n.id || "").toLowerCase() !== nodeId.toLowerCase());
+      filterAndRenderOkfTable();
+      if (kbStatOkfNodes) {
+        kbStatOkfNodes.textContent = `${currentOkfNodes.length} ${currentOkfNodes.length === 1 ? "node" : "nodes"}`;
+      }
+      if (kbCountBadge) {
+        kbCountBadge.textContent = currentOkfNodes.length + (currentKbDocuments?.length || 0);
+      }
+      closeOkfModal();
+
+      let data = null;
+      if (window.electronAPI && window.electronAPI.okf && typeof window.electronAPI.okf.delete === "function") {
+        data = await window.electronAPI.okf.delete(nodeId);
+      } else {
+        const res = await fetch(`/api/okf/node?id=${encodeURIComponent(nodeId)}`, {
+          method: "DELETE",
+        });
+        data = await res.json().catch(() => ({}));
+      }
+
+      showToast(`Node "${nodeId}" deleted successfully`, "success");
+      await loadKnowledgeBase();
+      if (typeof loadAndRenderOkfGraph === "function") {
+        await loadAndRenderOkfGraph();
+      }
+    } catch (err) {
+      showToast("Error deleting node: " + err.message, "error");
+      await loadKnowledgeBase();
+    }
+  }
+};
+
+// Wire OKF Inspector modal Delete Button
+const okfModalDeleteBtn = document.getElementById("okf-modal-delete-btn");
+if (okfModalDeleteBtn) {
+  okfModalDeleteBtn.addEventListener("click", () => {
+    const modalNodeId = document.getElementById("okf-modal-node-id")?.textContent?.trim();
+    if (modalNodeId && modalNodeId !== "node-id") {
+      window.deleteOkfNode(encodeURIComponent(modalNodeId));
+    }
+  });
+}
+
+// Wire OKF search & authority filter events
+if (okfFilterSearch) {
+  okfFilterSearch.addEventListener("input", filterAndRenderOkfTable);
+}
+if (okfFilterAuthority) {
+  okfFilterAuthority.addEventListener("change", filterAndRenderOkfTable);
+}
+
+// Wire OKF modal close button and backdrop click
+function closeOkfModal() {
+  if (okfNodeModal) {
+    okfNodeModal.classList.remove("visible");
+    setTimeout(() => {
+      okfNodeModal.classList.add("hidden");
+    }, 180);
+  }
+}
+
+if (okfModalClose) {
+  okfModalClose.addEventListener("click", closeOkfModal);
+}
+if (okfNodeModal) {
+  okfNodeModal.addEventListener("click", (e) => {
+    if (e.target === okfNodeModal) {
+      closeOkfModal();
+    }
+  });
+}
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && okfNodeModal && okfNodeModal.classList.contains("visible")) {
+    closeOkfModal();
+  }
+});
+
+// Copy Raw Markdown button in Inspect Modal
+if (okfModalCopyMd) {
+  okfModalCopyMd.addEventListener("click", async () => {
+    const content = document.getElementById("okf-modal-content")?.textContent || "";
+    if (!content) return;
+    try {
+      await navigator.clipboard.writeText(content);
+      const orig = okfModalCopyMd.textContent;
+      okfModalCopyMd.textContent = "✅ Copied!";
+      setTimeout(() => (okfModalCopyMd.textContent = orig), 2000);
+      showToast("Raw Markdown copied to clipboard", "success");
+    } catch {
+      showToast("Failed to copy markdown", "error");
+    }
+  });
+}
+
+// Ingest local Markdown specification (.md) with YAML frontmatter
+if (btnUploadOkfSpec && okfFileInput) {
+  btnUploadOkfSpec.addEventListener("click", () => {
+    okfFileInput.click();
+  });
+  okfFileInput.addEventListener("change", async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const { content } = await readFileData(file);
+      const res = await fetch("/api/okf/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename: file.name, content }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(`Ingested OKF node: ${data.node?.id || file.name}`, "success");
+        await loadKnowledgeBase();
+        if (typeof loadAndRenderOkfGraph === "function") {
+          await loadAndRenderOkfGraph();
+        }
+      } else {
+        alert("Failed to ingest OKF spec: " + (data.error || data.message || "Unknown error"));
+      }
+    } catch (err) {
+      alert("Error reading file: " + err.message);
+    } finally {
+      okfFileInput.value = "";
+    }
+  });
+}
+
+// ─── OKF Interactive Visual Force Graph Engine ───────────────────────
+
+class OkfForceGraph {
+  constructor(canvasEl) {
+    this.canvas = canvasEl;
+    this.ctx = canvasEl ? canvasEl.getContext("2d") : null;
+    this.nodes = [];
+    this.edges = [];
+    this.transform = { x: 0, y: 0, k: 1 };
+    this.dragNode = null;
+    this.hoverNode = null;
+    this.isPanning = false;
+    this.panStart = { x: 0, y: 0 };
+    this.animId = null;
+    this.initialized = false;
+
+    if (this.canvas) {
+      this.initEvents();
+    }
+  }
+
+  initEvents() {
+    this.canvas.addEventListener("mousedown", (e) => this.onMouseDown(e));
+    this.canvas.addEventListener("mousemove", (e) => this.onMouseMove(e));
+    window.addEventListener("mouseup", () => this.onMouseUp());
+    this.canvas.addEventListener("wheel", (e) => this.onWheel(e), { passive: false });
+    window.addEventListener("resize", () => this.resize());
+  }
+
+  resize() {
+    if (!this.canvas) return;
+    const rect = this.canvas.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+    const dpr = window.devicePixelRatio || 1;
+    this.canvas.width = rect.width * dpr;
+    this.canvas.height = rect.height * dpr;
+    if (this.ctx) {
+      this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+      this.ctx.scale(dpr, dpr);
+    }
+  }
+
+  setData(nodesData, edgesData) {
+    this.resize();
+    const rect = this.canvas ? this.canvas.getBoundingClientRect() : { width: 800, height: 500 };
+    const cx = (rect.width || 800) / 2;
+    const cy = (rect.height || 500) / 2;
+
+    const existingMap = new Map(this.nodes.map((n) => [n.id, n]));
+    this.nodes = nodesData.map((d, idx) => {
+      const existing = existingMap.get(d.id);
+      const angle = (idx / Math.max(1, nodesData.length)) * Math.PI * 2;
+      const radius = 120 + Math.random() * 80;
+      return {
+        id: d.id,
+        title: d.title || d.id,
+        domain: d.domain || "general",
+        authority: (d.authority || "canonical").toLowerCase(),
+        tags: d.tags || [],
+        x: existing ? existing.x : cx + Math.cos(angle) * radius,
+        y: existing ? existing.y : cy + Math.sin(angle) * radius,
+        vx: 0,
+        vy: 0,
+        radius: 20,
+      };
+    });
+
+    const nodeMap = new Map(this.nodes.map((n) => [n.id, n]));
+    this.edges = (edgesData || [])
+      .map((e) => {
+        const source = nodeMap.get(e.sourceId || e.source_id);
+        const target = nodeMap.get(e.targetId || e.target_id);
+        if (!source || !target) return null;
+        return {
+          source,
+          target,
+          relation: e.relation || "relates_to",
+        };
       })
+      .filter(Boolean);
+
+    const badge = document.getElementById("okf-graph-node-count-badge");
+    if (badge) {
+      badge.textContent = `${this.nodes.length} Nodes • ${this.edges.length} Links`;
+    }
+
+    if (!this.initialized && this.nodes.length > 0) {
+      this.fitView();
+      this.initialized = true;
+    }
+
+    this.startSimulation();
+  }
+
+  startSimulation() {
+    if (this.animId) cancelAnimationFrame(this.animId);
+    let iterations = 0;
+    const loop = () => {
+      this.stepPhysics();
+      this.render();
+      iterations++;
+      if (iterations < 300 || this.dragNode || this.isPanning) {
+        this.animId = requestAnimationFrame(loop);
+      }
+    };
+    this.animId = requestAnimationFrame(loop);
+  }
+
+  stepPhysics() {
+    const kRepulsion = 12000;
+    const kSpring = 0.04;
+    const linkLength = 230;
+    const damping = 0.82;
+    const minCollisionDist = 140;
+
+    // 1. Node-Node Repulsion & Anti-Collision
+    for (let i = 0; i < this.nodes.length; i++) {
+      for (let j = i + 1; j < this.nodes.length; j++) {
+        const n1 = this.nodes[i];
+        const n2 = this.nodes[j];
+        const dx = n2.x - n1.x;
+        const dy = n2.y - n1.y;
+        const distSq = dx * dx + dy * dy + 1;
+        const dist = Math.sqrt(distSq);
+
+        // Inverse-square repulsion
+        const force = kRepulsion / Math.max(25, distSq);
+        const fx = (dx / dist) * force;
+        const fy = (dy / dist) * force;
+
+        n1.vx -= fx;
+        n1.vy -= fy;
+        n2.vx += fx;
+        n2.vy += fy;
+
+        // Hard collision bubble push to prevent text and node overlap
+        if (dist < minCollisionDist) {
+          const overlapPush = (minCollisionDist - dist) * 0.45;
+          const px = (dx / dist) * overlapPush;
+          const py = (dy / dist) * overlapPush;
+          n1.vx -= px;
+          n1.vy -= py;
+          n2.vx += px;
+          n2.vy += py;
+        }
+      }
+    }
+
+    // 2. Edge Spring Forces
+    for (const edge of this.edges) {
+      const { source, target } = edge;
+      const dx = target.x - source.x;
+      const dy = target.y - source.y;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      const force = (dist - linkLength) * kSpring;
+      const fx = (dx / dist) * force;
+      const fy = (dy / dist) * force;
+
+      source.vx += fx;
+      source.vy += fy;
+      target.vx -= fx;
+      target.vy -= fy;
+    }
+
+    // 3. Centering force & velocity integration
+    const rect = this.canvas.getBoundingClientRect();
+    const cx = (rect.width || 800) / 2;
+    const cy = (rect.height || 500) / 2;
+
+    for (const node of this.nodes) {
+      if (node === this.dragNode) continue;
+      node.vx += (cx - node.x) * 0.0025;
+      node.vy += (cy - node.y) * 0.0025;
+      node.vx *= damping;
+      node.vy *= damping;
+      node.x += node.vx;
+      node.y += node.vy;
+    }
+  }
+
+  render() {
+    if (!this.ctx || !this.canvas) return;
+    const rect = this.canvas.getBoundingClientRect();
+    const width = rect.width || 800;
+    const height = rect.height || 500;
+
+    this.ctx.clearRect(0, 0, width, height);
+    this.ctx.save();
+    this.ctx.translate(this.transform.x, this.transform.y);
+    this.ctx.scale(this.transform.k, this.transform.k);
+
+    // 1. Draw Edges
+    for (const edge of this.edges) {
+      const { source, target, relation } = edge;
+      const isHighlighted = this.hoverNode && (this.hoverNode === source || this.hoverNode === target);
+
+      this.ctx.beginPath();
+      this.ctx.moveTo(source.x, source.y);
+      this.ctx.lineTo(target.x, target.y);
+      this.ctx.strokeStyle = isHighlighted ? "rgba(99, 102, 241, 0.95)" : "rgba(100, 116, 139, 0.35)";
+      this.ctx.lineWidth = isHighlighted ? 2.5 : 1.2;
+      this.ctx.stroke();
+
+      // Arrow head
+      const dx = target.x - source.x;
+      const dy = target.y - source.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist > 35) {
+        const arrowX = target.x - (dx / dist) * (target.radius + 2);
+        const arrowY = target.y - (dy / dist) * (target.radius + 2);
+        const angle = Math.atan2(dy, dx);
+        this.ctx.beginPath();
+        this.ctx.moveTo(arrowX, arrowY);
+        this.ctx.lineTo(arrowX - 8 * Math.cos(angle - Math.PI / 6), arrowY - 8 * Math.sin(angle - Math.PI / 6));
+        this.ctx.lineTo(arrowX - 8 * Math.cos(angle + Math.PI / 6), arrowY - 8 * Math.sin(angle + Math.PI / 6));
+        this.ctx.fillStyle = isHighlighted ? "rgba(99, 102, 241, 0.95)" : "rgba(100, 116, 139, 0.6)";
+        this.ctx.fill();
+      }
+
+      // Relation Label with protective pill badge
+      if (this.transform.k > 0.55 || isHighlighted) {
+        const midX = (source.x + target.x) / 2;
+        const midY = (source.y + target.y) / 2;
+        this.ctx.font = "bold 9.5px sans-serif";
+        const textMetrics = this.ctx.measureText(relation);
+        const badgeW = textMetrics.width + 12;
+        const badgeH = 16;
+
+        // Protective background badge
+        this.ctx.fillStyle = "rgba(15, 23, 42, 0.92)";
+        this.ctx.strokeStyle = isHighlighted ? "rgba(99, 102, 241, 0.7)" : "rgba(100, 116, 139, 0.25)";
+        this.ctx.lineWidth = 1;
+        this.ctx.beginPath();
+        this.ctx.roundRect(midX - badgeW / 2, midY - badgeH / 2, badgeW, badgeH, 4);
+        this.ctx.fill();
+        this.ctx.stroke();
+
+        this.ctx.fillStyle = isHighlighted ? "#c7d2fe" : "#94a3b8";
+        this.ctx.textAlign = "center";
+        this.ctx.textBaseline = "middle";
+        this.ctx.fillText(relation, midX, midY);
+      }
+    }
+
+    // 2. Draw Nodes
+    for (const node of this.nodes) {
+      const isHover = this.hoverNode === node;
+      const color =
+        node.authority === "canonical"
+          ? "#10b981"
+          : node.authority === "experimental"
+          ? "#f59e0b"
+          : node.authority === "deprecated"
+          ? "#ef4444"
+          : "#3b82f6";
+
+      // Outer Glow
+      this.ctx.beginPath();
+      this.ctx.arc(node.x, node.y, node.radius + (isHover ? 6 : 2), 0, Math.PI * 2);
+      this.ctx.fillStyle = isHover ? `${color}44` : `${color}22`;
+      this.ctx.fill();
+
+      // Node Body Circle
+      this.ctx.beginPath();
+      this.ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
+      this.ctx.fillStyle = "#1e2433";
+      this.ctx.fill();
+      this.ctx.strokeStyle = color;
+      this.ctx.lineWidth = isHover ? 2.5 : 1.8;
+      this.ctx.stroke();
+
+      // Node Icon
+      this.ctx.font = "12px sans-serif";
+      this.ctx.textAlign = "center";
+      this.ctx.textBaseline = "middle";
+      this.ctx.fillText("🧠", node.x, node.y);
+
+      // Node Title / Slug Label with protective pill badge
+      this.ctx.font = "bold 11px monospace";
+      const labelText = node.id;
+      const metrics = this.ctx.measureText(labelText);
+      const pillW = Math.max(metrics.width + 14, 48);
+      const pillH = node.domain ? 32 : 18;
+      const pillY = node.y + node.radius + 6;
+
+      // Draw glassmorphic label badge background
+      this.ctx.fillStyle = isHover ? "rgba(15, 23, 42, 0.96)" : "rgba(15, 23, 42, 0.88)";
+      this.ctx.strokeStyle = isHover ? color : "rgba(100, 116, 139, 0.3)";
+      this.ctx.lineWidth = 1;
+      this.ctx.beginPath();
+      this.ctx.roundRect(node.x - pillW / 2, pillY, pillW, pillH, 5);
+      this.ctx.fill();
+      this.ctx.stroke();
+
+      // Slug text
+      this.ctx.fillStyle = isHover ? "#ffffff" : "#f1f5f9";
+      this.ctx.textAlign = "center";
+      this.ctx.textBaseline = "middle";
+      this.ctx.fillText(labelText, node.x, pillY + (node.domain ? 10 : 9));
+
+      // Domain sub-badge
+      if (node.domain && (this.transform.k > 0.75 || isHover)) {
+        this.ctx.font = "9px sans-serif";
+        this.ctx.fillStyle = isHover ? "#93c5fd" : "rgba(148, 163, 184, 0.85)";
+        this.ctx.fillText(`📁 ${node.domain}`, node.x, pillY + 22);
+      }
+    }
+
+    this.ctx.restore();
+  }
+
+  screenToWorld(sx, sy) {
+    return {
+      x: (sx - this.transform.x) / this.transform.k,
+      y: (sy - this.transform.y) / this.transform.k,
+    };
+  }
+
+  getNodeAt(sx, sy) {
+    const w = this.screenToWorld(sx, sy);
+    for (let i = this.nodes.length - 1; i >= 0; i--) {
+      const node = this.nodes[i];
+      const dx = w.x - node.x;
+      const dy = w.y - node.y;
+      if (dx * dx + dy * dy <= (node.radius + 6) * (node.radius + 6)) {
+        return node;
+      }
+    }
+    return null;
+  }
+
+  onMouseDown(e) {
+    const rect = this.canvas.getBoundingClientRect();
+    const sx = e.clientX - rect.left;
+    const sy = e.clientY - rect.top;
+    const node = this.getNodeAt(sx, sy);
+
+    if (node) {
+      this.dragNode = node;
+      this.dragNode.vx = 0;
+      this.dragNode.vy = 0;
+      this.startSimulation();
+    } else {
+      this.isPanning = true;
+      this.panStart = { x: e.clientX - this.transform.x, y: e.clientY - this.transform.y };
+      this.canvas.style.cursor = "grabbing";
+    }
+  }
+
+  onMouseMove(e) {
+    const rect = this.canvas.getBoundingClientRect();
+    const sx = e.clientX - rect.left;
+    const sy = e.clientY - rect.top;
+
+    if (this.dragNode) {
+      const w = this.screenToWorld(sx, sy);
+      this.dragNode.x = w.x;
+      this.dragNode.y = w.y;
+      this.startSimulation();
+    } else if (this.isPanning) {
+      this.transform.x = e.clientX - this.panStart.x;
+      this.transform.y = e.clientY - this.panStart.y;
+      this.render();
+    } else {
+      const prevHover = this.hoverNode;
+      this.hoverNode = this.getNodeAt(sx, sy);
+      this.canvas.style.cursor = this.hoverNode ? "pointer" : "grab";
+      if (prevHover !== this.hoverNode) {
+        this.render();
+      }
+    }
+  }
+
+  onMouseUp() {
+    if (this.dragNode) {
+      this.dragNode = null;
+    }
+    if (this.isPanning) {
+      this.isPanning = false;
+      this.canvas.style.cursor = "grab";
+    }
+  }
+
+  onWheel(e) {
+    e.preventDefault();
+    const rect = this.canvas.getBoundingClientRect();
+    const sx = e.clientX - rect.left;
+    const sy = e.clientY - rect.top;
+    const zoomFactor = e.deltaY < 0 ? 1.15 : 0.88;
+    const newK = Math.min(3.5, Math.max(0.2, this.transform.k * zoomFactor));
+
+    this.transform.x = sx - (sx - this.transform.x) * (newK / this.transform.k);
+    this.transform.y = sy - (sy - this.transform.y) * (newK / this.transform.k);
+    this.transform.k = newK;
+    this.render();
+  }
+
+  resetView() {
+    const rect = this.canvas.getBoundingClientRect();
+    this.transform = { x: 0, y: 0, k: 1 };
+    this.fitView();
+  }
+
+  fitView() {
+    if (this.nodes.length === 0) return;
+    const rect = this.canvas.getBoundingClientRect();
+    const width = rect.width || 800;
+    const height = rect.height || 500;
+
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (const node of this.nodes) {
+      if (node.x < minX) minX = node.x;
+      if (node.x > maxX) maxX = node.x;
+      if (node.y < minY) minY = node.y;
+      if (node.y > maxY) maxY = node.y;
+    }
+
+    const graphWidth = maxX - minX + 100;
+    const graphHeight = maxY - minY + 100;
+    const kx = (width * 0.8) / Math.max(100, graphWidth);
+    const ky = (height * 0.8) / Math.max(100, graphHeight);
+    const k = Math.min(1.4, Math.max(0.35, Math.min(kx, ky)));
+
+    const midX = (minX + maxX) / 2;
+    const midY = (minY + maxY) / 2;
+
+    this.transform = {
+      k,
+      x: width / 2 - midX * k,
+      y: height / 2 - midY * k,
+    };
+    this.render();
+  }
+}
+
+let okfGraphInstance = null;
+
+async function loadAndRenderOkfGraph() {
+  const canvas = document.getElementById("okf-graph-canvas");
+  if (!canvas) return;
+
+  if (!okfGraphInstance) {
+    okfGraphInstance = new OkfForceGraph(canvas);
+
+    // Double-click on node opens inspector
+    canvas.addEventListener("dblclick", (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const sx = e.clientX - rect.left;
+      const sy = e.clientY - rect.top;
+      const node = okfGraphInstance.getNodeAt(sx, sy);
+      if (node && typeof window.viewOkfNode === "function") {
+        window.viewOkfNode(encodeURIComponent(node.id));
+      }
+    });
+  }
+
+  try {
+    let graphData = null;
+    if (window.electronAPI && window.electronAPI.okf && typeof window.electronAPI.okf.graph === "function") {
+      graphData = await window.electronAPI.okf.graph();
+    } else {
+      const res = await fetch("/api/okf/graph");
+      if (res.ok) graphData = await res.json();
+    }
+
+    if (graphData && graphData.nodes) {
+      okfGraphInstance.setData(graphData.nodes, graphData.edges || []);
+    }
+  } catch (err) {
+    console.warn("Failed to load OKF graph data:", err);
+  }
+}
+
+// Wire View Toggles: Table View vs Force Graph View
+const btnViewTable = document.getElementById("okf-btn-view-table");
+const btnViewGraph = document.getElementById("okf-btn-view-graph");
+const tableContainer = document.getElementById("okf-table-container");
+const graphContainer = document.getElementById("okf-graph-view-container");
+
+if (btnViewTable && btnViewGraph) {
+  btnViewTable.addEventListener("click", () => {
+    btnViewTable.classList.add("active");
+    btnViewTable.style.background = "var(--accent)";
+    btnViewTable.style.color = "#fff";
+    btnViewGraph.classList.remove("active");
+    btnViewGraph.style.background = "transparent";
+    btnViewGraph.style.color = "var(--text-muted)";
+    if (tableContainer) tableContainer.classList.remove("hidden");
+    if (graphContainer) graphContainer.classList.add("hidden");
+  });
+
+  btnViewGraph.addEventListener("click", () => {
+    btnViewGraph.classList.add("active");
+    btnViewGraph.style.background = "var(--accent)";
+    btnViewGraph.style.color = "#fff";
+    btnViewTable.classList.remove("active");
+    btnViewTable.style.background = "transparent";
+    btnViewTable.style.color = "var(--text-muted)";
+    if (tableContainer) tableContainer.classList.add("hidden");
+    if (graphContainer) {
+      graphContainer.classList.remove("hidden");
+      loadAndRenderOkfGraph();
+    }
+  });
+}
+
+// Graph toolbar reset & fit controls
+const btnGraphReset = document.getElementById("okf-graph-btn-reset");
+const btnGraphFit = document.getElementById("okf-graph-btn-fit");
+if (btnGraphReset) {
+  btnGraphReset.addEventListener("click", () => {
+    if (okfGraphInstance) okfGraphInstance.resetView();
+  });
+}
+if (btnGraphFit) {
+  btnGraphFit.addEventListener("click", () => {
+    if (okfGraphInstance) okfGraphInstance.fitView();
+  });
+}
+
+// ─── OKF Auto-Distillation Modal Controller ──────────────────────────
+
+const btnDistillOkf = document.getElementById("btn-distill-okf");
+const distillModal = document.getElementById("okf-distill-modal");
+const distillModalClose = document.getElementById("okf-distill-modal-close");
+const distillBtnCancel = document.getElementById("okf-distill-btn-cancel");
+const distillBtnSubmit = document.getElementById("okf-distill-btn-submit");
+const distillTabFile = document.getElementById("okf-distill-tab-file");
+const distillTabText = document.getElementById("okf-distill-tab-text");
+const distillFilePanel = document.getElementById("okf-distill-file-panel");
+const distillTextPanel = document.getElementById("okf-distill-text-panel");
+const distillFilepathInput = document.getElementById("okf-distill-filepath");
+const distillRawtextInput = document.getElementById("okf-distill-rawtext");
+const distillAuthoritySelect = document.getElementById("okf-distill-authority");
+const distillDomainInput = document.getElementById("okf-distill-domain");
+const distillBtnBrowse = document.getElementById("okf-distill-btn-browse");
+const distillNativeFileInput = document.getElementById("okf-distill-native-file");
+const distillPreviewBox = document.getElementById("okf-distill-preview-box");
+const distillPreviewContent = document.getElementById("okf-distill-preview-content");
+
+let activeDistillTab = "file";
+
+function openDistillModal() {
+  if (!distillModal) return;
+  if (distillPreviewBox) distillPreviewBox.classList.add("hidden");
+  if (distillFilepathInput) distillFilepathInput.value = "";
+  if (distillRawtextInput) distillRawtextInput.value = "";
+  if (distillDomainInput) distillDomainInput.value = "";
+  distillModal.classList.remove("hidden");
+  void distillModal.offsetWidth;
+  distillModal.classList.add("visible");
+}
+
+function closeDistillModal() {
+  if (!distillModal) return;
+  distillModal.classList.remove("visible");
+  setTimeout(() => {
+    distillModal.classList.add("hidden");
+  }, 180);
+}
+
+if (btnDistillOkf) {
+  btnDistillOkf.addEventListener("click", openDistillModal);
+}
+if (distillModalClose) {
+  distillModalClose.addEventListener("click", closeDistillModal);
+}
+if (distillBtnCancel) {
+  distillBtnCancel.addEventListener("click", closeDistillModal);
+}
+if (distillModal) {
+  distillModal.addEventListener("click", (e) => {
+    if (e.target === distillModal) closeDistillModal();
+  });
+}
+
+if (distillTabFile && distillTabText) {
+  distillTabFile.addEventListener("click", () => {
+    activeDistillTab = "file";
+    distillTabFile.classList.add("active");
+    distillTabFile.style.background = "var(--accent)";
+    distillTabFile.style.color = "#fff";
+    distillTabText.classList.remove("active");
+    distillTabText.style.background = "transparent";
+    if (distillFilePanel) distillFilePanel.classList.remove("hidden");
+    if (distillTextPanel) distillTextPanel.classList.add("hidden");
+  });
+
+  distillTabText.addEventListener("click", () => {
+    activeDistillTab = "text";
+    distillTabText.classList.add("active");
+    distillTabText.style.background = "var(--accent)";
+    distillTabText.style.color = "#fff";
+    distillTabFile.classList.remove("active");
+    distillTabFile.style.background = "transparent";
+    if (distillTextPanel) distillTextPanel.classList.remove("hidden");
+    if (distillFilePanel) distillFilePanel.classList.add("hidden");
+  });
+}
+
+if (distillBtnBrowse && distillNativeFileInput) {
+  distillBtnBrowse.addEventListener("click", async () => {
+    if (window.electronAPI && typeof window.electronAPI.selectFile === "function") {
+      const res = await window.electronAPI.selectFile({
+        filters: [{ name: "Documents & Code", extensions: ["pdf", "md", "txt", "csv", "json", "ts", "js", "py"] }],
+      });
+      if (res && res.filePath) {
+        distillFilepathInput.value = res.filePath;
+      }
+    } else {
+      distillNativeFileInput.click();
+    }
+  });
+
+  distillNativeFileInput.addEventListener("change", (e) => {
+    const file = e.target.files?.[0];
+    if (file && distillFilepathInput) {
+      distillFilepathInput.value = file.name;
+    }
+  });
+}
+
+if (distillBtnSubmit) {
+  distillBtnSubmit.addEventListener("click", async () => {
+    const filePath = distillFilepathInput?.value.trim();
+    const rawText = distillRawtextInput?.value.trim();
+    const authority = distillAuthoritySelect?.value || "canonical";
+    const domain = distillDomainInput?.value.trim() || undefined;
+
+    if (activeDistillTab === "file" && !filePath) {
+      alert("Please provide a file path or click Browse to select a file.");
+      return;
+    }
+    if (activeDistillTab === "text" && !rawText) {
+      alert("Please paste text to distill into an OKF node.");
+      return;
+    }
+
+    const origBtnHtml = distillBtnSubmit.innerHTML;
+    distillBtnSubmit.disabled = true;
+    distillBtnSubmit.innerHTML = "⏳ Distilling...";
+
+    try {
+      let result = null;
+      const payload = {
+        filePath: activeDistillTab === "file" ? filePath : undefined,
+        rawText: activeDistillTab === "text" ? rawText : undefined,
+        authority,
+        domain,
+        saveToStore: true,
+      };
+
+      if (window.electronAPI && window.electronAPI.okf && typeof window.electronAPI.okf.distill === "function") {
+        result = await window.electronAPI.okf.distill(payload);
+      } else {
+        const res = await fetch("/api/okf/distill", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        result = await res.json();
+      }
+
+      if (result && result.success) {
+        showToast(`✨ Distilled OKF node: ${result.node?.id || "node"}`, "success");
+        if (distillPreviewBox && distillPreviewContent) {
+          distillPreviewBox.classList.remove("hidden");
+          distillPreviewContent.textContent = result.node?.rawMarkdown || result.node?.content || JSON.stringify(result.node, null, 2);
+        }
+        await loadKnowledgeBase();
+        if (okfGraphInstance) {
+          loadAndRenderOkfGraph();
+        }
+      } else {
+        alert("Distillation failed: " + (result?.message || result?.error || "Unknown error"));
+      }
+    } catch (err) {
+      alert("Distillation error: " + err.message);
+    } finally {
+      distillBtnSubmit.disabled = false;
+      distillBtnSubmit.innerHTML = origBtnHtml;
+    }
+  });
+}
+
+// ─── OKF Code Grounding & Invariant Verifier Modal Controller ────────
+
+const btnVerifyOkfCode = document.getElementById("btn-verify-okf-code");
+const verifyModal = document.getElementById("okf-verify-modal");
+const verifyModalClose = document.getElementById("okf-verify-modal-close");
+const verifyBtnClose = document.getElementById("okf-verify-btn-close");
+const verifyBtnRecheck = document.getElementById("okf-verify-btn-recheck");
+const verifyTableBody = document.getElementById("okf-verify-table-body");
+const verifySummaryContainer = document.getElementById("okf-verify-summary");
+
+async function runCodeVerificationScan() {
+  if (!verifyTableBody) return;
+  verifyTableBody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 24px;">Scanning workspace code links...</td></tr>`;
+
+  try {
+    let data = null;
+    if (window.electronAPI && window.electronAPI.okf && typeof window.electronAPI.okf.verifyCodeLinks === "function") {
+      data = await window.electronAPI.okf.verifyCodeLinks({});
+    } else {
+      const res = await fetch("/api/okf/verify-code-links");
+      if (res.ok) data = await res.json();
+    }
+
+    const report = data?.report;
+    if (!report || !report.details) {
+      verifyTableBody.innerHTML = `<tr><td colspan="4" style="color: var(--text-dim); padding: 18px; text-align: center;">No code references or grounding links found in active OKF nodes.</td></tr>`;
+      return;
+    }
+
+    // Render Summary Badges
+    if (verifySummaryContainer) {
+      verifySummaryContainer.innerHTML = `
+        <span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16,185,129,0.3); padding: 6px 12px; font-size: 12px;">
+          ✅ ${report.validCodeLinks} Valid Code Link${report.validCodeLinks === 1 ? "" : "s"}
+        </span>
+        <span class="badge" style="background: ${report.brokenCodeLinks > 0 ? 'rgba(239, 68, 68, 0.15)' : 'rgba(100, 116, 139, 0.15)'}; color: ${report.brokenCodeLinks > 0 ? '#ef4444' : 'var(--text-dim)'}; border: 1px solid ${report.brokenCodeLinks > 0 ? 'rgba(239,68,68,0.3)' : 'var(--border-card)'}; padding: 6px 12px; font-size: 12px;">
+          ${report.brokenCodeLinks > 0 ? `⚠️ ${report.brokenCodeLinks} Broken Code Link${report.brokenCodeLinks === 1 ? "" : "s"}` : "0 Broken Links"}
+        </span>
+        <span class="badge" style="background: rgba(99, 102, 241, 0.15); color: #818cf8; border: 1px solid rgba(99,102,241,0.3); padding: 6px 12px; font-size: 12px;">
+          🔍 ${report.codeLinksFound} Total Grounded Implementation${report.codeLinksFound === 1 ? "" : "s"}
+        </span>
+      `;
+    }
+
+    if (report.details.length === 0) {
+      verifyTableBody.innerHTML = `<tr><td colspan="4" style="color: var(--text-dim); padding: 20px; text-align: center;">No code files linked yet. Use relation <code>implemented_by</code> in OKF specs to link source files.</td></tr>`;
+      return;
+    }
+
+    verifyTableBody.innerHTML = report.details
+      .map((item) => `
+        <tr>
+          <td><strong style="font-family: var(--font-mono, monospace); color: var(--accent);">${escapeHtmlStr(item.nodeId)}</strong></td>
+          <td><span class="okf-link-rel">${escapeHtmlStr(item.relation)}</span></td>
+          <td><code style="color: var(--text-main); font-size: 12px;">${escapeHtmlStr(item.target)}</code></td>
+          <td>
+            ${
+              item.exists
+                ? '<span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #10b981; font-size: 11px;">✔ Verified in Workspace</span>'
+                : `<span class="badge" style="background: rgba(239, 68, 68, 0.15); color: #ef4444; font-size: 11px;" title="${escapeHtmlStr(item.error || 'Missing file')}">❌ Missing Code File</span>`
+            }
+          </td>
+        </tr>
+      `)
       .join("");
   } catch (err) {
-    kbTableBody.innerHTML = `<tr><td colspan="5" style="color: var(--danger); padding: 16px;">Failed to load documents: ${err.message}</td></tr>`;
+    verifyTableBody.innerHTML = `<tr><td colspan="4" style="color: var(--danger); padding: 18px;">Verification error: ${err.message}</td></tr>`;
   }
+}
+
+function openVerifyModal() {
+  if (!verifyModal) return;
+  verifyModal.classList.remove("hidden");
+  void verifyModal.offsetWidth;
+  verifyModal.classList.add("visible");
+  runCodeVerificationScan();
+}
+
+function closeVerifyModal() {
+  if (!verifyModal) return;
+  verifyModal.classList.remove("visible");
+  setTimeout(() => {
+    verifyModal.classList.add("hidden");
+  }, 180);
+}
+
+if (btnVerifyOkfCode) {
+  btnVerifyOkfCode.addEventListener("click", openVerifyModal);
+}
+if (verifyModalClose) {
+  verifyModalClose.addEventListener("click", closeVerifyModal);
+}
+if (verifyBtnClose) {
+  verifyBtnClose.addEventListener("click", closeVerifyModal);
+}
+if (verifyBtnRecheck) {
+  verifyBtnRecheck.addEventListener("click", runCodeVerificationScan);
+}
+if (verifyModal) {
+  verifyModal.addEventListener("click", (e) => {
+    if (e.target === verifyModal) closeVerifyModal();
+  });
 }
 
 window.deleteDocument = async function (encodedName) {
@@ -10051,9 +11743,12 @@ window.deleteDocument = async function (encodedName) {
       const res = await fetch(`/api/kb/documents?filename=${encodeURIComponent(name)}`, {
         method: "DELETE",
       });
-      if (res.ok) {
-        loadKnowledgeBase();
-        loadStatus();
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success !== false) {
+        showToast(`Document "${name}" removed successfully`, "success");
+        await loadKnowledgeBase();
+      } else {
+        alert("Failed to delete document: " + (data.error || data.message || `HTTP ${res.status}`));
       }
     } catch (err) {
       alert("Failed to delete document: " + err.message);
@@ -10091,22 +11786,39 @@ kbDropzone.addEventListener("drop", async (e) => {
 });
 
 async function handleFileUpload(file) {
+  const isMd = file.name.toLowerCase().endsWith(".md") || file.name.toLowerCase().endsWith(".markdown");
   const dropzoneTitle = kbDropzone.querySelector(".dropzone-title");
   const originalTitle = dropzoneTitle.textContent;
-  dropzoneTitle.textContent = `⏳ Embedding & Ingesting "${file.name}"... (may take a few seconds)`;
-  kbTableBody.innerHTML = `
-    <tr>
-      <td colspan="5" style="text-align: center; padding: 32px; color: var(--text-dim);">
-        <div style="display: flex; align-items: center; justify-content: center; gap: 10px;">
-          <div class="tool-spinner" style="width:16px;height:16px;border-width:2px;"></div>
-          Embedding "${file.name}" into Vector Store — this may take 5–15 seconds...
-        </div>
-      </td>
-    </tr>
-  `;
+  dropzoneTitle.textContent = `⏳ Ingesting "${file.name}"...`;
 
   try {
     const { content, isBase64 } = await readFileData(file);
+    const hasFrontmatter = typeof content === "string" && content.trimStart().startsWith("---");
+
+    // Smart Router: If Markdown with YAML frontmatter, ingest into Tier 1 (OKF Graph)
+    if (isMd && hasFrontmatter) {
+      const res = await fetch("/api/okf/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          filename: file.name,
+          content: content,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        dropzoneTitle.textContent = `✅ Ingested "${file.name}" into OKF Canonical Graph!`;
+        setTimeout(() => (dropzoneTitle.textContent = originalTitle), 4000);
+        showToast(`Ingested OKF node: ${data.node?.id || file.name}`, "success");
+        await loadKnowledgeBase();
+        if (typeof loadAndRenderOkfGraph === "function") {
+          await loadAndRenderOkfGraph();
+        }
+        return;
+      }
+    }
+
+    // Default: Ingest into Tier 2 (Vector RAG)
     const res = await fetch("/api/kb/upload", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -10121,8 +11833,8 @@ async function handleFileUpload(file) {
     if (data.success) {
       dropzoneTitle.textContent = `✅ Ingested "${file.name}" — ${data.result?.chunkCount || 0} chunks embedded`;
       setTimeout(() => (dropzoneTitle.textContent = originalTitle), 4000);
+      showToast(`Ingested document "${file.name}" into Vector RAG`, "success");
       await loadKnowledgeBase();
-      await loadStatus();
     } else {
       dropzoneTitle.textContent = originalTitle;
       kbTableBody.innerHTML = `<tr><td colspan="5" style="color: var(--danger); padding: 16px;">❌ Upload failed: ${data.error || "Unknown error"}</td></tr>`;
@@ -10668,7 +12380,10 @@ function adjustTextareaHeight() {
   });
 }
 
-userInput.addEventListener("input", adjustTextareaHeight);
+userInput.addEventListener("input", () => {
+  adjustTextareaHeight();
+  updateModeSuggestion();
+});
 window.addEventListener("resize", adjustTextareaHeight);
 
 userInput.addEventListener("keydown", (e) => {
@@ -10875,12 +12590,54 @@ window.addEventListener("keydown", (e) => {
 
 async function sendMessage(text) {
   const thisSessionId = currentSessionId;
-  const thisMode = sessionModes.get(thisSessionId) || "normal";
+  let thisMode = sessionModes.get(thisSessionId) || chatModeSelect?.value || "code";
   let turnFailed = false;
 
   if (runningSessions.has(thisSessionId) || (!text && pendingAttachments.length === 0)) return;
 
   const userText = text || (pendingAttachments.length > 0 ? `Please analyze the attached ${pendingAttachments.length} document(s).` : "");
+
+  // If user is NOT in Agent mode and requests code implementation or execution, confirm switching to Agent mode
+  if ((thisMode !== "code" && thisMode !== "agent") && detectImplementationOrExecutionIntent(userText)) {
+    const currentModeName = thisMode === "plan" ? "Plan" : "Chat Only";
+    const modeBadge = thisMode === "plan" ? "📋 Plan" : "💬 Chat Only";
+
+    const choice = await showThemedConfirm({
+      title: "Switch to ⚡ Agent Mode?",
+      message: `You are currently in ${modeBadge} mode, but your message appears to request code implementation or execution.\n\nSwitch to ⚡ Agent mode so AI Plate can create files, modify code, and execute commands?`,
+      confirmText: "Switch to ⚡ Agent Mode",
+      secondaryText: `Send in ${currentModeName}`,
+      cancelText: "Cancel",
+      icon: "⚡",
+      danger: false,
+    });
+
+    if (choice === true) {
+      thisMode = "code";
+      sessionModes.set(thisSessionId, "code");
+      dirtySessionModes.add(thisSessionId);
+      chatModeSelect.value = "code";
+      syncChatModeSelector();
+      await saveChatMode(thisSessionId, "code").catch(() => {});
+      showToast("Switched to ⚡ Agent mode", "info");
+    } else if (choice === "secondary") {
+      // User opted to send in current mode anyway
+    } else {
+      // User cancelled: keep draft in input box and restore focus
+      if (userInput && !userInput.value) {
+        userInput.value = text || "";
+        adjustTextareaHeight();
+      }
+      userInput?.focus();
+      return;
+    }
+  }
+
+  // Dismiss inline suggestion pill if active
+  if (modeSuggestionPill) {
+    modeSuggestionPill.classList.add("hidden");
+    modeSuggestionPill.style.display = "none";
+  }
 
   // Hide the hero welcome on first message
   if (chatHero) {
@@ -11246,60 +13003,47 @@ async function sendMessage(text) {
             loadSessions();
           }
 
-          // Auto-detect and render in-chat artifact cards if response mentions existing artifacts or user asked to show them
+          // Smart In-Chat Artifact Delivery:
+          // 1. If user explicitly requests to list/show artifacts, render the compact In-Chat Artifacts Listing card.
+          // 2. If the response or user specifically references an existing artifact filename (with exact name match), render its card.
+          // 3. NEVER blindly pop up artifacts simply because words like "graph", "chart", "plot", "timeline" appeared in normal prose.
           (async () => {
             try {
-              if (blockElement.querySelector(".plugin-custom-card, .inchat-artifact-card")) return;
+              if (blockElement.querySelector(".plugin-custom-card, .inchat-artifact-card, .inchat-artifacts-listing-card")) return;
+
+              const userTextTrimmed = (userText || "").trim();
+              const isListReq = isExplicitArtifactListRequest(userTextTrimmed);
 
               const artRes = await fetch("/api/artifacts/files");
-              if (artRes.ok) {
-                const artData = await artRes.json();
-                const files = artData.files || [];
-                const textLower = (payload.text || "").toLowerCase();
-                const userTextLower = userText.toLowerCase();
+              if (!artRes.ok) return;
+              const artData = await artRes.json();
+              const files = artData.files || [];
 
-                // 1. Check if the LLM's response specifically mentions any artifact filenames
-                const mentionedFiles = files.filter((f) => {
-                  const fnameLower = f.name.toLowerCase();
-                  return textLower.includes(fnameLower) || textLower.includes(`artifacts/${fnameLower}`);
+              if (isListReq) {
+                await renderInChatArtifactsListing(blockElement, { files });
+                return;
+              }
+
+              if (files.length === 0) return;
+
+              const responseText = payload.text || "";
+
+              // Strict matching: only artifacts specifically named in affirmative assistant output or explicitly requested by user
+              const mentionedFiles = files.filter((f) => {
+                return (
+                  isArtifactSpecificallyMentioned(responseText, f.name) ||
+                  isUserRequestingArtifactView(userTextTrimmed, f.name)
+                );
+              });
+
+              for (const f of mentionedFiles) {
+                await renderInChatArtifactCard(blockElement, {
+                  artifactName: f.name,
+                  sizeBytes: f.sizeBytes,
+                  url: `/api/artifacts/file?name=${encodeURIComponent(f.name)}`,
+                  description: "Persistent artifact deliverable",
+                  position: "after-body",
                 });
-
-                let filesToRender = [];
-                if (mentionedFiles.length > 0) {
-                  filesToRender = mentionedFiles;
-                } else if (
-                  userTextLower.includes("chart") ||
-                  userTextLower.includes("plot") ||
-                  userTextLower.includes("graph") ||
-                  userTextLower.includes("timeline")
-                ) {
-                  filesToRender = files.filter((f) => {
-                    const fn = f.name.toLowerCase();
-                    return (
-                      fn.includes("chart") ||
-                      fn.includes("plot") ||
-                      fn.includes("graph") ||
-                      fn.includes("timeline") ||
-                      /\.(png|jpg|jpeg|svg|webp)$/i.test(fn)
-                    );
-                  });
-                } else if (
-                  userTextLower.includes("show all artifacts") ||
-                  userTextLower.includes("list all artifacts") ||
-                  userTextLower.includes("all deliverables")
-                ) {
-                  filesToRender = files;
-                }
-
-                for (const f of filesToRender) {
-                  await renderInChatArtifactCard(blockElement, {
-                    artifactName: f.name,
-                    sizeBytes: f.sizeBytes,
-                    url: `/api/artifacts/file?name=${encodeURIComponent(f.name)}`,
-                    description: "Persistent artifact deliverable",
-                    position: "after-body",
-                  });
-                }
               }
             } catch {}
             scrollToBottom();
@@ -12561,12 +14305,15 @@ async function renderSessionMessages(messages) {
       appendMessage("user", msg.content, []);
     } else {
       const content = msg.content || "";
-      const contentLower = content.toLowerCase();
+      const prevMsg = i > 0 ? messages[i - 1] : null;
+      const isListRequest = prevMsg && prevMsg.role === "user" && isExplicitArtifactListRequest(prevMsg.content);
 
-      // Find any artifacts explicitly produced or mentioned in THIS specific message
+      // Find any artifacts explicitly produced or mentioned in THIS specific message or requested by user
       const referencedArtifacts = existingArtifacts.filter((art) => {
-        const artNameLower = art.name.toLowerCase();
-        return contentLower.includes(artNameLower) || contentLower.includes(`artifacts/${artNameLower}`);
+        return (
+          isArtifactSpecificallyMentioned(content, art.name) ||
+          (prevMsg && prevMsg.role === "user" && isUserRequestingArtifactView(prevMsg.content, art.name))
+        );
       });
 
       // If this message has visual artifact cards, strip duplicate markdown image links from body text
@@ -12615,14 +14362,18 @@ async function renderSessionMessages(messages) {
       }
       chatMessages.appendChild(block);
 
-      // Render cards only for artifacts actually referenced in this message
-      for (const art of referencedArtifacts) {
-        renderInChatArtifactCard(block, {
-          artifactName: art.name,
-          url: art.url,
-          description: "Generated Deliverable Artifact",
-          position: "after-body",
-        });
+      if (isListRequest) {
+        renderInChatArtifactsListing(block, { files: existingArtifacts });
+      } else {
+        // Render cards only for artifacts actually referenced in this message
+        for (const art of referencedArtifacts) {
+          renderInChatArtifactCard(block, {
+            artifactName: art.name,
+            url: art.url,
+            description: "Generated Deliverable Artifact",
+            position: "after-body",
+          });
+        }
       }
     }
   }
@@ -12688,7 +14439,10 @@ async function createNewSession() {
 }
 
 window.deleteSession = async function (sessionId, e) {
-  if (e) e.stopPropagation();
+  if (e) {
+    e.stopPropagation();
+    e.preventDefault();
+  }
   const confirmed = await showThemedConfirm({
     title: "Delete Chat Session",
     message: "Are you sure you want to permanently delete this chat history? All conversation memory will be erased.",
@@ -12703,15 +14457,18 @@ window.deleteSession = async function (sessionId, e) {
     });
     const data = await res.json();
     if (data.success) {
+      showToast("Chat session deleted", "info");
       if (currentSessionId === sessionId) {
         if (data.activeSessionId) {
-          switchSession(data.activeSessionId);
+          await switchSession(data.activeSessionId, true);
         } else {
-          createNewSession();
+          await createNewSession();
         }
       } else {
-        loadSessions();
+        await loadSessions();
       }
+    } else {
+      alert("Failed to delete session: " + (data.error || "Unknown error"));
     }
   } catch (err) {
     alert("Failed to delete session: " + err.message);

@@ -296,12 +296,22 @@ export class OpenAIProvider implements AIProvider {
       const values = res.data[0].embedding;
       return new Float32Array(values);
     } catch {
-      // Graceful fallback: generate normalized feature hash vector
+      // Graceful fallback: generate normalized token bag-of-words feature hash vector
       const dim = 1024;
       const vec = new Float32Array(dim);
-      for (let i = 0; i < safeText.length; i++) {
-        const code = safeText.charCodeAt(i);
-        vec[(i * 31 + code) % dim] += Math.sin(code * (i + 1));
+      const tokens = safeText.toLowerCase().match(/\b[a-z0-9_\-]{2,}\b/g) || [];
+      for (const token of tokens) {
+        let h = 5381;
+        for (let i = 0; i < token.length; i++) {
+          h = ((h << 5) + h + token.charCodeAt(i)) & 0x7fffffff;
+        }
+        vec[h % dim] += 1.0;
+        if (token.length >= 3) {
+          for (let i = 0; i < token.length - 2; i++) {
+            const sub = (token.charCodeAt(i) * 31 + token.charCodeAt(i + 1)) * 31 + token.charCodeAt(i + 2);
+            vec[Math.abs(sub) % dim] += 0.35;
+          }
+        }
       }
       let norm = 0;
       for (let i = 0; i < dim; i++) norm += vec[i] * vec[i];

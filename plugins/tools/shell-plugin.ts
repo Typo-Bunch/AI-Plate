@@ -22,7 +22,7 @@ import { exec } from "node:child_process";
 import { promisify } from "node:util";
 import { writeFileSync, readFileSync, readdirSync, statSync, unlinkSync, mkdirSync, existsSync, copyFileSync, rmdirSync } from "node:fs";
 import { resolve, join, basename, extname, dirname } from "node:path";
-import { CONFIG } from "../../core/config.js";
+import { CONFIG, resolveWorkspacePath } from "../../core/config.js";
 import { parseDocumentContent } from "../../core/document-parser.js";
 import { PythonEngine } from "../../core/python-engine.js";
 import type { ToolHandler, ToolPlugin, ToolSchema } from "../../core/types.js";
@@ -480,19 +480,13 @@ const cleanSandboxSchema: ToolSchema = {
 // ─── Tool 5: read_file ───────────────────────────────────────────────
 
 const readFileHandler: ToolHandler = async (args) => {
-  const filePath = args.file_path as string;
+  const filePath = (args.file_path || args.filePath || args.path) as string;
   if (!filePath || typeof filePath !== "string") {
     return { error: "The 'file_path' argument is required and must be a string." };
   }
 
-  // Try locating file in artifacts first, then .sandbox, then workspace root
-  let targetPath = resolve(ARTIFACTS_DIR, filePath);
-  if (!existsSync(targetPath)) {
-    targetPath = resolve(SANDBOX_DIR, filePath);
-  }
-  if (!existsSync(targetPath)) {
-    targetPath = resolve(process.cwd(), filePath);
-  }
+  // Resilient multi-root path lookup across artifacts, sandbox, workspace root, app root, and scratch
+  const targetPath = resolveWorkspacePath(filePath);
 
   if (!existsSync(targetPath)) {
     return { error: `File not found: "${filePath}". Looked in artifacts/, .sandbox/, and workspace root.` };

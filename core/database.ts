@@ -198,6 +198,31 @@ export class AgentDatabase {
         value TEXT NOT NULL,
         updated_at TEXT NOT NULL
       );
+
+      -- OKF (Open Knowledge Format) Nodes
+      CREATE TABLE IF NOT EXISTS okf_nodes (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        domain TEXT NOT NULL DEFAULT 'general',
+        tags_json TEXT NOT NULL DEFAULT '[]',
+        authority TEXT NOT NULL DEFAULT 'canonical',
+        version TEXT NOT NULL DEFAULT '1.0.0',
+        content TEXT NOT NULL,
+        raw_markdown TEXT NOT NULL,
+        embedding BLOB,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      -- OKF Link Graph (explicit relationships & wiki-links)
+      CREATE TABLE IF NOT EXISTS okf_links (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        source_id TEXT NOT NULL,
+        target_id TEXT NOT NULL,
+        relation TEXT NOT NULL DEFAULT 'relates_to',
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (source_id) REFERENCES okf_nodes(id) ON DELETE CASCADE
+      );
     `);
 
     // Safe migration: Add session_id column if upgrading existing database
@@ -216,6 +241,10 @@ export class AgentDatabase {
       CREATE INDEX IF NOT EXISTS idx_user_facts_key ON user_facts(fact_key);
       CREATE INDEX IF NOT EXISTS idx_user_facts_status ON user_facts(status);
       CREATE INDEX IF NOT EXISTS idx_user_reflections_status ON user_reflections(status);
+      CREATE INDEX IF NOT EXISTS idx_okf_nodes_domain ON okf_nodes(domain);
+      CREATE INDEX IF NOT EXISTS idx_okf_nodes_authority ON okf_nodes(authority);
+      CREATE INDEX IF NOT EXISTS idx_okf_links_source ON okf_links(source_id);
+      CREATE INDEX IF NOT EXISTS idx_okf_links_target ON okf_links(target_id);
     `);
   }
 

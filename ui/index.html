@@ -113,7 +113,7 @@
     </div>
 
     <div class="topbar-right">
-      <div class="active-model-badge" id="badge-model" title="Active Reasoning Model">
+      <div class="active-model-badge" id="badge-model" title="Active Reasoning Model — Click to configure Models & Reasoning" role="button" tabindex="0">
         nvidia/nemotron-3.5-lightning:free
       </div>
       <button id="btn-token-stats" class="icon-btn" title="View Full Token Analytics & Ledger">
@@ -206,11 +206,11 @@
 
       <!-- Sidebar Footer Status & Settings Corner Button -->
       <div class="sidebar-footer">
-        <div class="provider-pill" id="sidebar-provider-pill" title="Active Provider & Embedding">
+        <div class="provider-pill" id="sidebar-provider-pill" title="Active Provider & Embedding — Click to configure Models & Reasoning" role="button" tabindex="0">
           <div class="status-indicator"></div>
           <div class="provider-details">
-            <span class="provider-model" id="provider-name">OPENROUTER</span>
-            <span class="embedding-model-sub" id="embedding-name">liquid/lfm-2.5-embedding-350m:free</span>
+            <span class="provider-model" id="provider-name" title="Active AI Provider">OPENROUTER</span>
+            <span class="embedding-model-sub" id="embedding-name" title="Active Vector Embedding Model">liquid/lfm-2.5-embedding-350m:free</span>
           </div>
         </div>
         <button class="icon-btn sidebar-settings-icon-btn" data-tab="tab-settings" id="btn-sidebar-settings" title="Settings & Models">
@@ -297,42 +297,156 @@
       <!-- ─── TAB 2: KNOWLEDGE BASE VIEW ────────────────────────────── -->
       <main id="tab-kb" class="tab-view">
         <div class="content-container">
-          <div class="view-header">
+          <!-- Overview Header -->
+          <div class="view-header" style="margin-bottom: 16px;">
             <div>
               <h2 class="view-title">Knowledge Base</h2>
-              <p class="view-desc" id="kb-tagline">Persistent SQLite Vector Store with high-dimensional embeddings.</p>
+              <p class="view-desc" id="kb-tagline">Deterministic OKF Canonical Knowledge Graph &amp; High-Dimensional Vector RAG.</p>
             </div>
-            <button class="btn btn-secondary btn-sm" id="btn-refresh-kb">🔄 Refresh</button>
+            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+              <button class="btn btn-secondary btn-sm" id="btn-refresh-kb">🔄 Refresh</button>
+            </div>
           </div>
 
-          <!-- Modern Upload Dropzone -->
-          <div class="dropzone" id="kb-dropzone">
-            <div class="dropzone-icon">📁</div>
-            <div class="dropzone-title">Drag & drop documents to ingest into Vector RAG</div>
-            <div class="dropzone-desc">Supports CSV, Markdown (.md), PDF, Text (.txt), and code files</div>
-            <input type="file" id="kb-file-input" class="file-input-hidden" multiple />
-            <button class="btn btn-primary" id="btn-browse-kb">Browse Files</button>
+          <!-- Hybrid Architecture Summary Bar -->
+          <div class="kb-summary-bar" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 24px;">
+            <div class="stat-card" style="padding: 12px 16px; border-radius: var(--radius-md); background: var(--bg-card); border: 1px solid var(--border-card);">
+              <div style="font-size: 11px; text-transform: uppercase; font-weight: 600; color: var(--text-muted); letter-spacing: 0.5px;">Tier 1 · Knowledge Graph</div>
+              <div style="font-size: 20px; font-weight: 700; color: var(--accent); margin-top: 4px;" id="kb-stat-okf-nodes">0 nodes</div>
+              <div style="font-size: 11.5px; color: var(--text-dim); margin-top: 2px;">Canonical &amp; Deterministic Invariants</div>
+            </div>
+            <div class="stat-card" style="padding: 12px 16px; border-radius: var(--radius-md); background: var(--bg-card); border: 1px solid var(--border-card);">
+              <div style="font-size: 11px; text-transform: uppercase; font-weight: 600; color: var(--text-muted); letter-spacing: 0.5px;">Tier 2 · Vector RAG</div>
+              <div style="font-size: 20px; font-weight: 700; color: var(--text-main); margin-top: 4px;" id="kb-stat-rag-docs">0 documents</div>
+              <div style="font-size: 11.5px; color: var(--text-dim); margin-top: 2px;" id="kb-stat-rag-chunks">0 chunks embedded</div>
+            </div>
+            <div class="stat-card" style="padding: 12px 16px; border-radius: var(--radius-md); background: var(--bg-card); border: 1px solid var(--border-card);">
+              <div style="font-size: 11px; text-transform: uppercase; font-weight: 600; color: var(--text-muted); letter-spacing: 0.5px;">Hybrid Query Router</div>
+              <div style="font-size: 14px; font-weight: 600; color: #10b981; margin-top: 8px; display: flex; align-items: center; gap: 6px;">
+                <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#10b981;"></span>
+                <span>Tier 1 Graph Priority</span>
+              </div>
+              <div style="font-size: 11.5px; color: var(--text-dim); margin-top: 2px;">Graph traversal with Vector fallback</div>
+            </div>
           </div>
 
-          <div class="table-container">
-            <table class="data-table" id="kb-table">
-              <thead>
-                <tr>
-                  <th>Document Name</th>
-                  <th>Chunks</th>
-                  <th>Characters</th>
-                  <th>Ingested Date</th>
-                  <th style="text-align: right;">Action</th>
-                </tr>
-              </thead>
-              <tbody id="kb-table-body">
-                <tr>
-                  <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 32px;">
-                    No documents ingested yet. Drop files above to start semantic search.
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+          <!-- ══════ SECTION 1: TIER 1 - OKF KNOWLEDGE GRAPH ══════ -->
+          <div class="kb-section" style="margin-bottom: 32px;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
+              <div>
+                <h3 style="font-size: 16px; font-weight: 700; color: var(--text-main); display: flex; align-items: center; gap: 8px;">
+                  <span>🧠</span>
+                  <span>Authoritative Knowledge Graph (Tier 1: OKF)</span>
+                </h3>
+                <p style="font-size: 12.5px; color: var(--text-muted); margin-top: 2px;">
+                  Deterministic, zero-hallucination canonical specs with YAML frontmatter, typed relationships, and invariant boundaries.
+                </p>
+              </div>
+              <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                <div class="okf-view-toggle" style="display: inline-flex; background: var(--bg-card); border: 1px solid var(--border-card); border-radius: var(--radius-sm); padding: 2px;">
+                  <button type="button" id="okf-btn-view-table" class="btn btn-xs okf-view-toggle-btn active" style="padding: 4px 9px; font-size: 11.5px; border-radius: 3px; background: var(--accent); color: #fff; border: none; cursor: pointer;">📋 Table</button>
+                  <button type="button" id="okf-btn-view-graph" class="btn btn-xs okf-view-toggle-btn" style="padding: 4px 9px; font-size: 11.5px; border-radius: 3px; background: transparent; color: var(--text-muted); border: none; cursor: pointer;">🕸️ Force Graph</button>
+                </div>
+                <input type="text" id="okf-filter-search" class="form-input" placeholder="🔍 Search OKF nodes, tags, domains..." style="font-size: 12px; padding: 5px 10px; width: 200px; border-radius: var(--radius-sm);" />
+                <select id="okf-filter-authority" class="select-input" style="font-size: 12px; padding: 5px 8px; border-radius: var(--radius-sm); background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border-card);">
+                  <option value="">All Authorities</option>
+                  <option value="canonical">Canonical</option>
+                  <option value="experimental">Experimental</option>
+                  <option value="authoritative">Authoritative</option>
+                  <option value="supplemental">Supplemental</option>
+                </select>
+                <input type="file" id="okf-file-input" accept=".md,.markdown" class="file-input-hidden" style="display: none;" />
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-upload-okf-spec" title="Ingest local Markdown (.md) specification with YAML frontmatter">📄 Ingest Spec (.md)</button>
+                <button type="button" class="btn btn-primary btn-sm" id="btn-distill-okf" title="Auto-distill any PDF, document, or raw text into an authoritative OKF Node">✨ Auto-Distill</button>
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-verify-okf-code" title="Verify code links and detect invariant drift">🔍 Verify Code</button>
+              </div>
+            </div>
+
+            <!-- Table View Container -->
+            <div id="okf-table-container" class="table-container" style="border: 1px solid var(--border-card); border-radius: var(--radius-md); overflow: hidden; background: var(--bg-card);">
+              <table class="data-table" id="okf-table" style="width: 100%;">
+                <thead>
+                  <tr>
+                    <th>Node ID &amp; Title</th>
+                    <th>Authority</th>
+                    <th>Domain</th>
+                    <th>Tags</th>
+                    <th>Graph Links</th>
+                    <th style="text-align: right;">Action</th>
+                  </tr>
+                </thead>
+                <tbody id="okf-table-body">
+                  <tr>
+                    <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 32px;">
+                      Loading OKF Knowledge Graph nodes...
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Interactive Force Graph View Container -->
+            <div id="okf-graph-view-container" class="hidden" style="border: 1px solid var(--border-card); border-radius: var(--radius-md); overflow: hidden; background: var(--bg-input, #0d1117); position: relative; height: 500px;">
+              <canvas id="okf-graph-canvas" style="width: 100%; height: 100%; display: block; cursor: grab;"></canvas>
+              
+              <!-- Graph Overlay Toolbar -->
+              <div style="position: absolute; top: 12px; left: 12px; display: flex; gap: 6px; z-index: 10;">
+                <button type="button" id="okf-graph-btn-reset" class="btn btn-secondary btn-xs" style="background: rgba(20,25,35,0.85); backdrop-filter: blur(6px); border: 1px solid var(--border-card);">🎯 Reset View</button>
+                <button type="button" id="okf-graph-btn-fit" class="btn btn-secondary btn-xs" style="background: rgba(20,25,35,0.85); backdrop-filter: blur(6px); border: 1px solid var(--border-card);">🔍 Fit All</button>
+                <span id="okf-graph-node-count-badge" class="badge" style="background: rgba(30,40,60,0.85); border: 1px solid var(--border-card); font-size: 11px;">0 Nodes • 0 Links</span>
+              </div>
+
+              <!-- Graph Legend -->
+              <div style="position: absolute; bottom: 12px; left: 12px; display: flex; gap: 10px; background: rgba(15,20,30,0.85); backdrop-filter: blur(8px); padding: 6px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-card); font-size: 11px; color: var(--text-muted); z-index: 10;">
+                <span style="display: flex; align-items: center; gap: 4px;"><span style="width: 8px; height: 8px; border-radius: 50%; background: #10b981; display: inline-block;"></span> Canonical</span>
+                <span style="display: flex; align-items: center; gap: 4px;"><span style="width: 8px; height: 8px; border-radius: 50%; background: #f59e0b; display: inline-block;"></span> Experimental</span>
+                <span style="display: flex; align-items: center; gap: 4px;"><span style="width: 8px; height: 8px; border-radius: 50%; background: #3b82f6; display: inline-block;"></span> Informational</span>
+                <span style="display: flex; align-items: center; gap: 4px;"><span style="width: 8px; height: 8px; border-radius: 50%; background: #ef4444; display: inline-block;"></span> Deprecated</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- ══════ SECTION 2: TIER 2 - VECTOR RAG DOCUMENTS ══════ -->
+          <div class="kb-section">
+            <div style="margin-bottom: 12px;">
+              <h3 style="font-size: 16px; font-weight: 700; color: var(--text-main); display: flex; align-items: center; gap: 8px;">
+                <span>📚</span>
+                <span>Vector RAG Semantic Documents (Tier 2: Embeddings)</span>
+              </h3>
+              <p style="font-size: 12.5px; color: var(--text-muted); margin-top: 2px;">
+                Probabilistic cosine similarity search over unstructured documentation, runbooks, logs, and meeting transcripts.
+              </p>
+            </div>
+
+            <!-- Modern Upload Dropzone -->
+            <div class="dropzone" id="kb-dropzone">
+              <div class="dropzone-icon">📁</div>
+              <div class="dropzone-title">Drag &amp; drop documents to ingest into Vector RAG</div>
+              <div class="dropzone-desc">Supports CSV, Markdown (.md), PDF, Text (.txt), and code files</div>
+              <input type="file" id="kb-file-input" class="file-input-hidden" multiple />
+              <button class="btn btn-primary" id="btn-browse-kb">Browse Files</button>
+            </div>
+
+            <div class="table-container" style="border: 1px solid var(--border-card); border-radius: var(--radius-md); overflow: hidden; background: var(--bg-card);">
+              <table class="data-table" id="kb-table" style="width: 100%;">
+                <thead>
+                  <tr>
+                    <th>Document Name</th>
+                    <th>Chunks</th>
+                    <th>Characters</th>
+                    <th>Ingested Date</th>
+                    <th style="text-align: right;">Action</th>
+                  </tr>
+                </thead>
+                <tbody id="kb-table-body">
+                  <tr>
+                    <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 32px;">
+                      No documents ingested yet. Drop files above to start semantic search.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
           <div class="chat-spacer"></div>
         </div>
@@ -486,6 +600,14 @@
           </div>
         </div>
 
+        <!-- Mode Switch Suggestion Pill -->
+        <div class="mode-suggestion-pill hidden" id="mode-suggestion-pill" style="display: none;">
+          <span class="mode-suggestion-icon">⚡</span>
+          <span class="mode-suggestion-text">Detected code/task — switch to <strong>Agent</strong> mode?</span>
+          <button type="button" class="btn btn-sm btn-primary mode-suggestion-btn" id="btn-switch-agent-suggestion">Switch to ⚡ Agent</button>
+          <button type="button" class="mode-suggestion-dismiss" id="btn-dismiss-agent-suggestion" title="Dismiss suggestion" aria-label="Dismiss">✕</button>
+        </div>
+
         <div class="dock-glass">
           <input type="file" id="chat-file-input" multiple style="display: none;" />
           <button class="dock-attach-btn" id="btn-dock-attach" title="Attach file as vector embedding">
@@ -636,6 +758,177 @@
   </div>
 
   <!-- ═══════════════════════════════════════════════════════════════
+       MODAL: OKF NODE INSPECTOR & GRAPH TRAVERSAL
+       ═══════════════════════════════════════════════════════════════ -->
+  <div id="okf-node-modal" class="modal-overlay hidden">
+    <div class="modal-card okf-node-card" style="max-width: 860px; width: 90%; max-height: 85vh; display: flex; flex-direction: column;">
+      <div class="modal-header" style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-card); padding: 14px 18px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 22px;">🧠</span>
+          <div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span id="okf-modal-node-id" style="font-family: var(--font-mono, monospace); font-weight: 700; font-size: 15px; color: var(--accent);">node-id</span>
+              <span id="okf-modal-authority" class="badge" style="font-size: 11px; text-transform: uppercase;">canonical</span>
+            </div>
+            <div id="okf-modal-title" style="font-size: 13px; color: var(--text-muted); margin-top: 2px;">Title</div>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <button id="okf-modal-delete-btn" class="btn btn-danger btn-xs" type="button" title="Delete this OKF node">🗑 Delete</button>
+          <button id="okf-modal-copy-md" class="btn btn-secondary btn-xs" type="button" title="Copy raw Markdown source to clipboard">📋 Copy Markdown</button>
+          <button id="okf-modal-close" class="icon-btn">✕</button>
+        </div>
+      </div>
+      <div class="modal-body" style="padding: 18px; overflow-y: auto; flex: 1;">
+        <!-- Metadata Chips -->
+        <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px;">
+          <div class="badge" style="background: var(--bg-hover); border: 1px solid var(--border-card); padding: 5px 10px; font-size: 12px; border-radius: var(--radius-sm);">
+            📁 Domain: <strong id="okf-modal-domain" style="color: var(--text-main);">architecture</strong>
+          </div>
+          <div class="badge" style="background: var(--bg-hover); border: 1px solid var(--border-card); padding: 5px 10px; font-size: 12px; border-radius: var(--radius-sm);">
+            🏷️ Tags: <span id="okf-modal-tags" style="color: var(--text-main);">spec, order</span>
+          </div>
+          <div class="badge" style="background: var(--bg-hover); border: 1px solid var(--border-card); padding: 5px 10px; font-size: 12px; border-radius: var(--radius-sm);">
+            🔖 Version: <span id="okf-modal-version" style="color: var(--text-main);">1.0.0</span>
+          </div>
+        </div>
+
+        <!-- Graph Links / Relation Map -->
+        <div style="margin-bottom: 16px; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--bg-card); border: 1px solid var(--border-card);">
+          <div style="font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+            <span>🔗</span>
+            <span>Knowledge Graph Relationships (<span id="okf-modal-links-count">0</span>)</span>
+          </div>
+          <div id="okf-modal-links-container" style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <!-- Rendered link buttons -->
+          </div>
+        </div>
+
+        <!-- Node Body Content -->
+        <div style="margin-top: 12px;">
+          <div style="font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 8px;">
+            📝 Canonical Document Content
+          </div>
+          <pre id="okf-modal-content" style="background: var(--bg-input, #0d1117); padding: 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-card); color: var(--text-main); font-family: var(--font-mono, monospace); font-size: 12.5px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; max-height: 400px; overflow-y: auto;"></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       MODAL: OKF AUTO-DISTILLATION
+       ═══════════════════════════════════════════════════════════════ -->
+  <div id="okf-distill-modal" class="modal-overlay hidden">
+    <div class="modal-card" style="max-width: 680px; width: 90%; max-height: 85vh; display: flex; flex-direction: column;">
+      <div class="modal-header" style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-card); padding: 14px 18px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 20px;">✨</span>
+          <div>
+            <div style="font-weight: 700; font-size: 15px; color: var(--text-main);">Auto-Distill to OKF Knowledge Node</div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 1px;">Extract invariant rules, domain, tags, and relations from unstructured files or text</div>
+          </div>
+        </div>
+        <button id="okf-distill-modal-close" class="icon-btn">✕</button>
+      </div>
+      <div class="modal-body" style="padding: 18px; overflow-y: auto; flex: 1;">
+        <!-- Input Mode Tabs -->
+        <div style="display: flex; gap: 8px; margin-bottom: 14px;">
+          <button type="button" id="okf-distill-tab-file" class="btn btn-secondary btn-xs active" style="background: var(--accent); color: #fff;">📁 Ingest File (PDF, MD, TXT)</button>
+          <button type="button" id="okf-distill-tab-text" class="btn btn-secondary btn-xs" style="background: transparent;">📝 Paste Raw Text</button>
+        </div>
+
+        <div id="okf-distill-file-panel">
+          <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 4px;">Select File or Enter Workspace Relative Path:</label>
+          <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+            <input type="text" id="okf-distill-filepath" class="form-input" placeholder="e.g. scratch/test-okf-docs/order-processing-spec.md or docs/manual.pdf" style="flex: 1; font-size: 12.5px; font-family: var(--font-mono, monospace);" />
+            <input type="file" id="okf-distill-native-file" accept=".pdf,.md,.markdown,.txt,.csv,.json,.ts,.js,.py" style="display: none;" />
+            <button type="button" id="okf-distill-btn-browse" class="btn btn-secondary btn-sm">📂 Browse...</button>
+          </div>
+        </div>
+
+        <div id="okf-distill-text-panel" class="hidden">
+          <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 4px;">Raw Text / Document Excerpt:</label>
+          <textarea id="okf-distill-rawtext" class="form-input" rows="6" placeholder="Paste unstructured architecture specs, incident runbooks, or policy text here..." style="width: 100%; font-size: 12.5px; font-family: var(--font-mono, monospace); line-height: 1.4; resize: vertical; margin-bottom: 12px;"></textarea>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
+          <div>
+            <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 4px;">Authority Tier:</label>
+            <select id="okf-distill-authority" class="select-input" style="width: 100%; font-size: 12.5px; padding: 6px 10px; background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border-card); border-radius: var(--radius-sm);">
+              <option value="canonical">Canonical (Verified Ground Truth)</option>
+              <option value="experimental">Experimental (Draft / Staging)</option>
+              <option value="informational">Informational (Guidelines / Specs)</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 4px;">Domain Override (Optional):</label>
+            <input type="text" id="okf-distill-domain" class="form-input" placeholder="e.g. payments, architecture, security (auto-detected if blank)" style="width: 100%; font-size: 12.5px;" />
+          </div>
+        </div>
+
+        <!-- Result / Preview Area -->
+        <div id="okf-distill-preview-box" class="hidden" style="margin-top: 10px; padding: 12px; background: var(--bg-input, #0d1117); border: 1px solid var(--border-card); border-radius: var(--radius-sm);">
+          <div style="font-size: 11.5px; font-weight: 600; color: #10b981; margin-bottom: 6px;" id="okf-distill-preview-title">✅ Distillation Complete</div>
+          <pre id="okf-distill-preview-content" style="font-size: 11.5px; font-family: var(--font-mono, monospace); color: var(--text-main); max-height: 180px; overflow-y: auto; white-space: pre-wrap; margin: 0;"></pre>
+        </div>
+      </div>
+      <div class="modal-footer" style="padding: 12px 18px; border-top: 1px solid var(--border-card); display: flex; justify-content: flex-end; gap: 8px;">
+        <button type="button" id="okf-distill-btn-cancel" class="btn btn-secondary btn-sm">Cancel</button>
+        <button type="button" id="okf-distill-btn-submit" class="btn btn-primary btn-sm">✨ Start Distillation</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       MODAL: OKF CODE GROUNDING & INVARIANT DRIFT VERIFIER
+       ═══════════════════════════════════════════════════════════════ -->
+  <div id="okf-verify-modal" class="modal-overlay hidden">
+    <div class="modal-card" style="max-width: 820px; width: 90%; max-height: 85vh; display: flex; flex-direction: column;">
+      <div class="modal-header" style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-card); padding: 14px 18px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 20px;">🔍</span>
+          <div>
+            <div style="font-weight: 700; font-size: 15px; color: var(--text-main);">Code Grounding &amp; Invariant Drift Verifier</div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 1px;">Validates referenced source files, schemas, and implementations against active OKF nodes</div>
+          </div>
+        </div>
+        <button id="okf-verify-modal-close" class="icon-btn">✕</button>
+      </div>
+      <div class="modal-body" style="padding: 18px; overflow-y: auto; flex: 1;">
+        <!-- Verification Summary Card -->
+        <div id="okf-verify-summary" style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
+          <!-- Injected badges -->
+        </div>
+
+        <!-- Verification Table -->
+        <div class="table-container" style="border: 1px solid var(--border-card); border-radius: var(--radius-sm); overflow: hidden; background: var(--bg-card);">
+          <table class="data-table" style="width: 100%;">
+            <thead>
+              <tr>
+                <th>OKF Node</th>
+                <th>Relationship</th>
+                <th>Code Target</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="okf-verify-table-body">
+              <tr>
+                <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                  Running verification scan across workspace...
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer" style="padding: 12px 18px; border-top: 1px solid var(--border-card); display: flex; justify-content: space-between; align-items: center;">
+        <button type="button" id="okf-verify-btn-recheck" class="btn btn-secondary btn-sm">🔄 Re-scan Workspace</button>
+        <button type="button" id="okf-verify-btn-close" class="btn btn-primary btn-sm">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
        MODAL: LIGHTBOX & CODE INSPECTOR
        ═══════════════════════════════════════════════════════════════ -->
   <div id="modal-container" class="modal-overlay hidden">
@@ -703,6 +996,7 @@
       </div>
       <div class="confirm-modal-actions">
         <button type="button" class="btn btn-secondary confirm-btn-cancel" id="confirm-btn-cancel">Cancel</button>
+        <button type="button" class="btn btn-secondary confirm-btn-secondary" id="confirm-btn-secondary" style="display: none;">Send in Current Mode</button>
         <button type="button" class="btn btn-danger confirm-btn-action" id="confirm-btn-action">Delete</button>
       </div>
     </div>

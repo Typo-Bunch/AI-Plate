@@ -279,6 +279,22 @@ const api = {
   kb: {
     documents: () => ipcRenderer.invoke("kb:documents"),
     upload: (payload) => ipcRenderer.invoke("kb:upload", payload),
+    delete: (filename) => ipcRenderer.invoke("kb:delete", { filename }),
+  },
+
+  // Open Knowledge Format (OKF) & Hybrid Knowledge
+  okf: {
+    nodes: (filter) => ipcRenderer.invoke("okf:nodes", filter),
+    get: (id) => ipcRenderer.invoke("okf:get", { id }),
+    save: (node) => ipcRenderer.invoke("okf:save", node),
+    delete: (id) => ipcRenderer.invoke("okf:delete", { id }),
+    traverse: (rootId, maxDepth) => ipcRenderer.invoke("okf:traverse", { rootId, maxDepth }),
+    search: (query, options) => ipcRenderer.invoke("okf:search", { query, ...options }),
+    upload: (payload) => ipcRenderer.invoke("okf:upload", payload),
+    ingestSamples: () => ipcRenderer.invoke("okf:ingest-samples"),
+    graph: () => ipcRenderer.invoke("okf:graph"),
+    distill: (payload) => ipcRenderer.invoke("okf:distill", payload),
+    verifyCodeLinks: (payload) => ipcRenderer.invoke("okf:verifyCodeLinks", payload),
   },
 
   // Sandbox Management

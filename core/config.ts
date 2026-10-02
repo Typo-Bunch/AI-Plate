@@ -6,13 +6,73 @@
  */
 
 import { readFileSync, existsSync } from "node:fs";
-import { resolve, dirname } from "node:path";
+import { resolve, dirname, basename, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as yaml from "yaml";
 import dotenv from "dotenv";
 import type { ProviderType } from "./ai-provider.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+/**
+ * Resolves a file or directory path resiliently across multiple candidate roots:
+ * 1. Checks if the path is absolute and exists directly.
+ * 2. Checks candidate base roots:
+ *    - process.cwd()
+ *    - process.env.AIPLATE_APP_ROOT (the repo/source root set before electron chdir)
+ *    - process.env.AIPLATE_USERDATA (Electron userData directory)
+ *    - parent of process.cwd()
+ * 3. Checks standard subdirectories within each base:
+ *    - direct path
+ *    - .sandbox/
+ *    - artifacts/
+ *    - scratch/
+ *    - scratch/test-okf-docs/
+ *    - .sandbox/artifacts/
+ *    - docs/
+ * 4. Checks if basename exists in any known subdirectories.
+ * 5. Fallback to resolve(process.cwd(), filePath)
+ */
+export function resolveWorkspacePath(targetPath: string): string {
+  if (!targetPath || typeof targetPath !== "string") return targetPath;
+  const clean = targetPath.trim();
+  if (!clean) return clean;
+
+  if (isAbsolute(clean) && existsSync(clean)) {
+    return clean;
+  }
+
+  const bases = [
+    process.cwd(),
+    process.env.AIPLATE_APP_ROOT,
+    process.env.AIPLATE_USERDATA,
+    resolve(process.cwd(), ".."),
+  ].filter(Boolean) as string[];
+
+  const subDirs = ["", ".sandbox", "artifacts", "scratch", "scratch/test-okf-docs", ".sandbox/artifacts", "docs"];
+
+  for (const base of bases) {
+    for (const sub of subDirs) {
+      const candidate = sub ? resolve(base, sub, clean) : resolve(base, clean);
+      if (existsSync(candidate)) {
+        return candidate;
+      }
+    }
+  }
+
+  const baseName = basename(clean);
+  for (const base of bases) {
+    for (const sub of subDirs) {
+      if (!sub) continue;
+      const candidate = resolve(base, sub, baseName);
+      if (existsSync(candidate)) {
+        return candidate;
+      }
+    }
+  }
+
+  return resolve(process.cwd(), clean);
+}
 
 /** Find the active config.yaml path */
 export function getResolvedConfigYamlPath(): string {

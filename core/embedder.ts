@@ -109,10 +109,24 @@ export class UniversalEmbedder {
   private fallbackVector(text: string): Float32Array {
     const dim = 1024;
     const vec = new Float32Array(dim);
-    for (let i = 0; i < text.length; i++) {
-      const code = text.charCodeAt(i);
-      vec[(i * 31 + code) % dim] += Math.sin(code * (i + 1));
+    const tokens = text.toLowerCase().match(/\b[a-z0-9_\-]{2,}\b/g) || [];
+    
+    for (const token of tokens) {
+      let h = 5381;
+      for (let i = 0; i < token.length; i++) {
+        h = ((h << 5) + h + token.charCodeAt(i)) & 0x7fffffff;
+      }
+      vec[h % dim] += 1.0;
+
+      // Subword character trigrams for stemming and morphology
+      if (token.length >= 3) {
+        for (let i = 0; i < token.length - 2; i++) {
+          const sub = (token.charCodeAt(i) * 31 + token.charCodeAt(i + 1)) * 31 + token.charCodeAt(i + 2);
+          vec[Math.abs(sub) % dim] += 0.35;
+        }
+      }
     }
+
     let norm = 0;
     for (let i = 0; i < dim; i++) norm += vec[i] * vec[i];
     norm = Math.sqrt(norm);
