@@ -2,6 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
   "appId": "com.aiplate.app",
   "productName": "AI Plate",
+  "publish": null,
   "directories": {
     "output": "release",
     "buildResources": "build"
@@ -58,6 +59,7 @@
     "signExecutable": false
   },
   "nsis": {
+    "artifactName": "AI.Plate.Setup.${version}.${ext}",
     "oneClick": false,
     "perMachine": false,
     "allowToChangeInstallationDirectory": true,

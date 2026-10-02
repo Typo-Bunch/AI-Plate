@@ -10,6 +10,20 @@ on:
         description: 'Tag / Release version (e.g. v1.0.0)'
         required: false
         default: 'v1.0.0'
+      release_title:
+        description: 'Custom Release Title (optional, defaults to title in RELEASE_NOTES.md)'
+        required: false
+        default: ''
+      prerelease:
+        description: 'Mark as Pre-release'
+        required: false
+        type: boolean
+        default: false
+      draft:
+        description: 'Save as Draft Release'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -36,23 +50,98 @@ jobs:
         run: npm run build
 
       - name: Build Windows Installer Executable
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx electron-builder --win nsis --config electron-builder.json
+        run: npx electron-builder --win nsis --publish never --config electron-builder.json
+
+      - name: Resolve Release Metadata
+        id: meta
+        shell: bash
+        run: |
+          TAG="${{ github.event.inputs.tag_name || github.ref_name }}"
+          CUSTOM_TITLE="${{ github.event.inputs.release_title }}"
+
+          TITLE=""
+          if [ -n "$CUSTOM_TITLE" ]; then
+            TITLE="$CUSTOM_TITLE"
+          elif [ -f "RELEASE_NOTES.md" ]; then
+            TITLE=$(node -e "const fs=require('fs'); const m=fs.readFileSync('RELEASE_NOTES.md','utf8').match(/^#\s+(.+)$/m); console.log(m ? m[1].trim() : '');")
+          fi
+
+          if [ -z "$TITLE" ]; then
+            TITLE="AI Plate $TAG"
+          fi
+
+          IS_PRERELEASE="false"
+          INPUT_PRERELEASE="${{ github.event.inputs.prerelease }}"
+          if [ "$INPUT_PRERELEASE" = "true" ] || [[ "$TAG" =~ -(rc|beta|alpha) ]]; then
+            IS_PRERELEASE="true"
+          fi
+
+          IS_DRAFT="${{ github.event.inputs.draft || 'false' }}"
+
+          echo "Resolved Tag: $TAG"
+          echo "Resolved Title: $TITLE"
+          echo "Prerelease: $IS_PRERELEASE"
+          echo "Draft: $IS_DRAFT"
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "title=$TITLE" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$IS_PRERELEASE" >> "$GITHUB_OUTPUT"
+          echo "draft=$IS_DRAFT" >> "$GITHUB_OUTPUT"
 
       - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
-        with:
-          tag_name: ${{ github.event.inputs.tag_name || github.ref_name }}
-          name: AI Plate ${{ github.event.inputs.tag_name || github.ref_name }}
-          body_path: RELEASE_NOTES.md
-          generate_release_notes: true
-          draft: false
-          prerelease: false
-          files: |
-            release/*.exe
-            release/*.blockmap
-            release/latest.yml
+        shell: bash
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.meta.outputs.tag }}"
+          TITLE="${{ steps.meta.outputs.title }}"
+          IS_PRERELEASE="${{ steps.meta.outputs.prerelease }}"
+          IS_DRAFT="${{ steps.meta.outputs.draft }}"
+
+          EXTRA_FLAGS=()
+          if [ "$IS_DRAFT" = "true" ]; then
+            EXTRA_FLAGS+=(--draft)
+          fi
+          if [ "$IS_PRERELEASE" = "true" ]; then
+            EXTRA_FLAGS+=(--prerelease)
+          else
+            EXTRA_FLAGS+=(--latest)
+          fi
+
+          NOTES_ARGS=()
+          if [ -f "RELEASE_NOTES.md" ]; then
+            NOTES_ARGS=(--notes-file "RELEASE_NOTES.md")
+          else
+            NOTES_ARGS=(--generate-notes)
+          fi
+
+          # Collect release artifacts from release/
+          FILES=()
+          for f in release/*.exe release/*.blockmap release/latest.yml; do
+            if [ -f "$f" ]; then
+              FILES+=("$f")
+            fi
+          done
+
+          if [ ${#FILES[@]} -eq 0 ]; then
+            echo "Error: No release artifacts found in release/ directory!"
+            exit 1
+          fi
+
+          echo "Artifacts to upload:"
+          for f in "${FILES[@]}"; do
+            echo " - $f"
+          done
+
+          # Check if release exists on GitHub
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists. Updating title, release notes, and uploading assets..."
+            gh release edit "$TAG" --title "$TITLE" "${NOTES_ARGS[@]}" "${EXTRA_FLAGS[@]}"
+            gh release upload "$TAG" "${FILES[@]}" --clobber
+          else
+            echo "Creating new release for $TAG with title '$TITLE'..."
+            gh release create "$TAG" "${FILES[@]}" --title "$TITLE" "${NOTES_ARGS[@]}" "${EXTRA_FLAGS[@]}"
+          fi
+
+          echo "Release successfully published!"
