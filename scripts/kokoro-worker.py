@@ -69,8 +69,22 @@ def get_kokoro(model_path=None, voices_path=None):
     global kokoro_instance
     with kokoro_lock:
         if kokoro_instance is None:
-            import onnxruntime as rt
-            from kokoro_onnx import Kokoro
+            try:
+                import onnxruntime as rt
+                from kokoro_onnx import Kokoro
+            except ImportError:
+                import subprocess
+                sys.stderr.write("[Kokoro Worker] kokoro_onnx not found. Auto-installing dependencies via pip...\n")
+                sys.stderr.flush()
+                try:
+                    subprocess.check_call([sys.executable, "-m", "pip", "install", "kokoro-onnx", "soundfile", "--no-warn-script-location"])
+                    import onnxruntime as rt
+                    from kokoro_onnx import Kokoro
+                except Exception as e:
+                    raise ImportError(
+                        f"kokoro_onnx is required for speech synthesis. "
+                        f"Auto-install failed ({e}). Please run: pip install kokoro-onnx soundfile"
+                    ) from e
 
             appdata = os.getenv("AIPLATE_USERDATA") or (
                 os.path.join(os.getenv("APPDATA", ""), "AI Plate") if os.getenv("APPDATA") else None
