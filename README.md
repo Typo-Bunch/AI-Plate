@@ -67,11 +67,13 @@ Your Butler is always ready to receive orders. Far beyond a standard chatbot, it
 
 | Subsystem | Capabilities |
 | :--- | :--- |
-| **Universal Model Orchestration** | Native integration with Gemini, OpenRouter, OpenAI, Anthropic, Groq, DeepSeek, and Ollama. Dynamic plug-and-play support for any OpenAI-compatible API (Together AI, LM Studio, vLLM). Setup is robust and tested with **Gemini 3.5** as the AI provider. |
+| **Universal Model Orchestration** | Native integration with Google Gemini, Anthropic Claude, OpenAI, Mistral AI, Groq, DeepSeek, OpenRouter, Ollama, and LM Studio. Dynamic support for any OpenAI-compatible endpoint. |
+| **Hybrid Knowledge Engine (OKF + RAG)** | Dual-tier knowledge architecture: **Tier 1 OKF (Open Knowledge Format)** for deterministic ground-truth specifications and graph dependencies + **Tier 2 Vector RAG** with SQLite Float32 BLOB vector search. |
+| **Interactive Force Graph & Auto-Distill** | Interactive canvas force-directed graph with anti-collision layout, real-time node inspection, and automated document distillation from raw PDFs/text into machine-actionable OKF nodes. |
+| **Code Grounding & Drift Verifier** | Verifies architectural specs against actual workspace source files, instantly detecting broken implementations or code drift. |
 | **Cognitive Thinking Depth** | Universal thinking budget knobs (`off`, `low`, `medium`, `high`, `max`) enabling deep chain-of-thought reasoning across all providers. |
 | **Local Speech-to-Text (STT)** | Offline, fast transcription powered by **Moonshine AI** running through a dedicated local Python worker. |
 | **Local Text-to-Speech (TTS)** | Ultra-natural on-device voice synthesis via **Kokoro ONNX** with mathematical LaTeX parsing (spoken algebraic equations). |
-| **High-Speed Vector RAG** | Native SQLite vector store powered by `better-sqlite3` with IEEE 754 Float32 binary BLOB embeddings, WAL mode, and automated TTL pruning. Robust and tested with **Liquid / LFM 2.5** from OpenRouter for embedding. |
 | **Sandboxed Code Execution** | Isolated bundled Python 3.11 engine for real-time mathematical modeling, statistical analysis, and script execution. |
 | **Intelligent Context Compression** | Dynamic sliding-window token management, tool output summarization, and RAG deduplication preventing context overflow. |
 | **Modular Extensibility** | Hot-reloadable **Custom Skills** (`SKILL.md`), third-party **Connectors**, and dynamic **Tool Plugins**. |
@@ -85,6 +87,7 @@ flowchart TB
     subgraph UI ["🖥️ Presentation Layer (Electron + Vanilla Web)"]
         Chat["Responsive Chat & Command Ledger"]
         VoiceIO["Voice HUD (Mic Input & TTS Audio Player)"]
+        GraphUI["🕸️ Interactive Force Graph & OKF Inspector"]
         Approval["Security Approval Modal & Code Inspector"]
     end
 
@@ -96,25 +99,28 @@ flowchart TB
     subgraph Core ["🧠 AI Plate Core Orchestrator"]
         Loop["Plan → Execute → Observe Reasoning Loop"]
         Thinking["Universal Cognitive Thinking Budget"]
+        HybridRouter["Hybrid Knowledge Router (OKF + Vector RAG)"]
         Compressor["Context & Token Compressor"]
         Security["Security Manager & Capability Whitelisting"]
     end
 
     subgraph Memory ["💾 Sovereign Memory Sanctuary"]
         Profile["Living Dossier (USER_PROFILE.md)"]
+        OKFStore["OKF Deterministic Graph Store & Invariant Engine"]
         SQLite[("Embedded SQLite (WAL + Float32 BLOB Vectors)")]
-        RAG["Knowledge Base & Semantic Chunker"]
+        RAG["Vector RAG & Document Chunker"]
     end
 
     subgraph Execution ["⚙️ Execution Engines & Local Workers"]
         PyEngine["Sandboxed Python 3.11 Engine"]
+        Distiller["OKF Auto-Distiller & Code Grounding Verifier"]
         Moonshine["Moonshine STT Worker (Speech-to-Text)"]
         Kokoro["Kokoro ONNX Worker (Text-to-Speech)"]
         LaTeX["LaTeX-to-Spoken-English Engine"]
     end
 
     subgraph Providers ["🌐 Multi-Provider Intelligence Pool"]
-        Cloud["Gemini • Claude • OpenAI • DeepSeek • Groq • OpenRouter"]
+        Cloud["Gemini • Claude • OpenAI • Mistral • DeepSeek • Groq • OpenRouter"]
         LocalLLM["Ollama • LM Studio • Local Endpoints"]
     end
 
@@ -393,6 +399,59 @@ custom_providers:
     driver: "openai-compatible"
     base_url: "http://localhost:1234/v1"
     default_model: "local-model"
+```
+
+---
+
+## 🧠 Open Knowledge Format (OKF) & Deterministic Knowledge Graph
+
+Traditional Vector RAG retrieves approximate snippets via probabilistic similarity, which frequently misses dependency chains or splits critical software invariants. **AI Plate introduces the Open Knowledge Format (OKF)** — an open specification standard for deterministic ground truth.
+
+### Key Capabilities
+
+1. **Deterministic Invariant Enforcement**:
+   - Explicit constraints (e.g. *"JWT token expiration is 3600 seconds"*) are treated as non-negotiable architectural rules.
+   - Boosted retrieval weighting prevents hallucinations.
+2. **Directed Graph Relationships**:
+   - Nodes specify explicit directed links (`depends_on`, `references`, `implemented_by`, `validates`) or inline `[[wiki-links]]`.
+3. **Interactive Visual Force Graph (`🕸️ Force Graph`)**:
+   - Real-time spring-physics canvas visualizer in the desktop UI with anti-collision layout, dynamic zooming/panning, and interactive node inspectors.
+4. **Code Grounding & Drift Verification**:
+   - Links specifications to active workspace source files (`core/auth.ts`, `database.ts`).
+   - Click **`🔍 Verify Code`** or run `verify_okf_invariants` to automatically detect deleted files, broken implementations, or documentation drift.
+5. **Fast On-Device Auto-Distillation**:
+   - Click **`✨ Auto-Distill`** or use the `distill_to_okf` tool to turn raw PDFs, manuals, and unstructured text into structured OKF nodes in $< 30\text{ ms}$.
+
+### Example OKF Specification Format (`auth-policy-spec.md`)
+
+```yaml
+---
+id: auth-policy-spec
+title: Authentication & JWT Token Policy
+domain: security
+tags:
+  - auth
+  - jwt
+  - security
+authority: canonical
+version: 1.0.0
+links:
+  - target: order-processing-spec
+    relation: references
+  - target: core/auth.ts
+    relation: implemented_by
+---
+
+# Authentication & JWT Token Policy
+
+## Summary
+Core API authentication policy requiring Bearer JWT tokens.
+
+## Core Invariants & Rules
+- All requests must include an Authorization header with Bearer JWT token.
+- Tokens strictly expire after 3600 seconds (1 hour).
+- Refresh tokens must be rotated on every renewal request.
+- Token validation is implemented by `core/auth.ts`.
 ```
 
 ---
