@@ -58,6 +58,7 @@
     "signExecutable": false
   },
   "nsis": {
+    "artifactName": "AI.Plate.Setup.${version}.${ext}",
     "oneClick": false,
     "perMachine": false,
     "allowToChangeInstallationDirectory": true,
