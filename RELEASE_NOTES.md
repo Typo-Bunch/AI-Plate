@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Typo-Bunch/AI-Plate/main/ui/assets/logo.png" alt="AI Plate Logo" width="160" />
+</p>
+
 # AI Plate v1.0.0 — Official Release
 
 ### 🚀 What's New in v1.0.0
