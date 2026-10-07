@@ -1,10 +1,10 @@
-#   <img src="https://raw.githubusercontent.com/Typo-Bunch/AI-Plate/main/ui/assets/logo.png" alt="AI Plate Logo" width="180" /> AI Plate v1.0.1 — Patch Release
+#   <img src="https://raw.githubusercontent.com/Typo-Bunch/AI-Plate/main/ui/assets/logo.png" alt="AI Plate Logo" width="180" /> AI Plate v1.0.2 — Patch Release
 
-We are pleased to announce **AI Plate v1.0.1**, focusing on modular plugin portability, real-time Material Symbols customization, process lifecycle reliability, and comprehensive test suite stabilization.
+We are pleased to announce **AI Plate v1.0.2**, focusing on modular plugin portability, real-time Material Symbols customization, process lifecycle reliability, and comprehensive test suite stabilization.
 
 ---
 
-### 🌟 What's New & Fixed in v1.0.1
+### 🌟 What's New & Fixed in v1.0.2
 
 - 📦 **Custom Plugin .zip Export & Distribution**:
   - Export any installed or custom plugin directly from its card in the Plugins section as a portable `.zip` package.
