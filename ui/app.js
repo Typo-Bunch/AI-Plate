@@ -7235,13 +7235,29 @@ function renderPlugins(plugins) {
           }
         } catch {}
 
+        // Optional theme overrides inherit the selected palette on first render.
+        // Saved edits still win, including an empty value meaning "use the preset".
+        let presetDefaults = {};
+        if (isThemeTool && !isIconTool) {
+          const preset = String(savedParams.preset || properties.preset?.default || "nordic-dark");
+          if (preset.startsWith("custom:")) {
+            try {
+              const customPresets = JSON.parse(localStorage.getItem("ai_plate_custom_presets") || "{}");
+              presetDefaults = customPresets[preset.slice(7)] || {};
+            } catch {}
+          } else {
+            presetDefaults = window.THEME_PALETTES?.[preset] || {};
+          }
+        }
+
         const fieldsHtml = propKeys
           .map((key) => {
             if (key === "save_as_preset") return "";
             const prop = properties[key] || {};
             const label = prop.title || key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
             const desc = prop.description ? escapeHtmlStr(prop.description) : "";
-            const defaultVal = prop.default !== undefined ? prop.default : "";
+            const defaultVal = presetDefaults[key] !== undefined ? presetDefaults[key] : (prop.default !== undefined ? prop.default : "");
+            const isOptional = !(schema.required || []).includes(key);
 
             // 1. Preset Dropdown with Custom Presets Support
             if (key === "preset" && Array.isArray(prop.enum)) {
@@ -7311,7 +7327,8 @@ function renderPlugins(plugins) {
               return `
                 <div class="plugin-param-field" style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
                   <label style="font-size: 11px; color: var(--text-dim); font-weight: 500;" title="${desc}">${escapeHtmlStr(label)}</label>
-                  <select class="custom-select plugin-param-input" data-param="${escapeHtmlStr(key)}" style="width: 100%; min-width: 0; font-size: 11.5px; padding: 6px 8px;">
+                  <select class="custom-select plugin-param-input" data-param="${escapeHtmlStr(key)}" data-omit-empty="${isOptional}" style="width: 100%; min-width: 0; font-size: 11.5px; padding: 6px 8px;">
+                    ${isOptional ? `<option value="" ${activeVal === "" ? "selected" : ""}>Use default</option>` : ""}
                     ${options}
                   </select>
                 </div>
@@ -7331,14 +7348,15 @@ function renderPlugins(plugins) {
 
             // 4. Color picker (if property name has color/accent)
             if (key.includes("color") || key.includes("accent")) {
-              const activeVal = String(savedParams[key] !== undefined ? savedParams[key] : (defaultVal || "#6366f1"));
-              const hexVal = activeVal.startsWith("#") ? activeVal : "#6366f1";
+              const activeVal = String(savedParams[key] !== undefined ? savedParams[key] : defaultVal);
+              // The native swatch needs a hex value; its display fallback is never submitted.
+              const hexVal = /^#[0-9a-f]{6}$/i.test(activeVal) ? activeVal : "#000000";
               return `
                 <div class="plugin-param-field" style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
                   <label style="font-size: 11px; color: var(--text-dim); font-weight: 500;" title="${desc}">${escapeHtmlStr(label)}</label>
                   <div style="display: flex; align-items: center; gap: 6px; width: 100%; min-width: 0;">
                     <input type="color" class="plugin-param-color-picker" value="${hexVal}" style="width: 32px; height: 30px; padding: 0; border: 1px solid var(--border-subtle); border-radius: 4px; background: transparent; cursor: pointer; flex-shrink: 0;" />
-                    <input type="text" class="custom-input plugin-param-input plugin-param-color-text" data-param="${escapeHtmlStr(key)}" value="${escapeHtmlStr(activeVal)}" placeholder="#6366f1" style="flex: 1; min-width: 0; font-size: 11.5px; font-family: monospace; padding: 5px 8px;" />
+                    <input type="text" class="custom-input plugin-param-input plugin-param-color-text" data-param="${escapeHtmlStr(key)}" data-omit-empty="${isOptional}" value="${escapeHtmlStr(activeVal)}" placeholder="Use preset color" style="flex: 1; min-width: 0; font-size: 11.5px; font-family: monospace; padding: 5px 8px;" />
                   </div>
                 </div>
               `;
@@ -7565,6 +7583,7 @@ function renderPlugins(plugins) {
                 params[paramKey] = `/api/media?name=${encodeURIComponent(val)}`;
               }
             } else {
+              if (input.dataset.omitEmpty === "true" && !input.value.trim()) return;
               params[paramKey] = input.value;
             }
           });
@@ -10160,6 +10179,9 @@ window.resetDynamicTheme = function (showToast = true) {
       form.getAttribute("data-tool-name")?.includes("theme") ||
       form.getAttribute("data-plugin-id")?.includes("theme");
     if (!isTheme) return;
+
+    // Do not let stale overrides restore the broken palette when settings reopen.
+    localStorage.removeItem(`ai_plate_plugin_params_${form.getAttribute("data-plugin-id")}_${form.getAttribute("data-tool-name")}`);
 
     const presetSelect = form.querySelector('.plugin-param-preset-select[data-param="preset"]');
     if (presetSelect) {
