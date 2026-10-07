@@ -7786,11 +7786,21 @@ window.teardownPluginEffects = function (pluginId) {
   const targetStyleIds = [
     `plugin-ext-${pluginId}`,
     `plugin-ext-${pId}`,
-    "ai-plate-dynamic-plugin-theme",
-    "ai-plate-dynamic-plugin-font",
-    "ai-plate-dynamic-icon-theme",
-    "ai-plate-dynamic-icon-font",
   ];
+
+  // Specific check: ONLY tear down icon styles if THIS specific plugin is the icon pack plugin
+  const isIconPlugin = pId === "google_material_icons" || pId.includes("icon_pack") || pId.includes("material_icons");
+  // ONLY tear down theme styles if THIS specific plugin is a theme plugin (and not an icon pack)
+  const isThemePlugin = (pId.includes("nordic") || pId.includes("theme_pack") || pId === "dynamic_theme") && !isIconPlugin;
+
+  if (isThemePlugin) {
+    targetStyleIds.push("ai-plate-dynamic-plugin-theme", "ai-plate-dynamic-plugin-font");
+  }
+
+  if (isIconPlugin) {
+    targetStyleIds.push("ai-plate-dynamic-icon-theme", "ai-plate-dynamic-icon-font");
+  }
+
   targetStyleIds.forEach((sId) => {
     const el = document.getElementById(sId);
     if (el) el.remove();
@@ -7810,8 +7820,8 @@ window.teardownPluginEffects = function (pluginId) {
     }
   });
 
-  // 3. Theme & UI Styling Reversion (Reset all CSS variables to pristine defaults)
-  if (pId.includes("theme") || pId.includes("style") || pId.includes("minimalist") || pId.includes("custom") || pId.includes("nordic")) {
+  // 3. Theme & UI Styling Reversion (Reset all CSS variables ONLY if this plugin is specifically a theme plugin)
+  if (isThemePlugin) {
     document.documentElement.style.removeProperty("--accent-primary");
     document.documentElement.style.removeProperty("--accent-secondary");
     document.documentElement.style.removeProperty("--bg-app");
@@ -7831,8 +7841,8 @@ window.teardownPluginEffects = function (pluginId) {
     }
   }
 
-  // 4. Icon Pack Reversion
-  if (pId.includes("icon") || pId.includes("material") || pId.includes("symbol")) {
+  // 4. Icon Pack Reversion (ONLY if this plugin is specifically an icon pack plugin)
+  if (isIconPlugin) {
     localStorage.removeItem("ai_plate_active_icon_pack");
     if (typeof window.resetDynamicIconPack === "function") {
       window.resetDynamicIconPack(false);
@@ -8271,6 +8281,35 @@ function setupChatCommandPalette() {
   });
 }
 
+function ensureActiveThemeAndIcons() {
+  try {
+    const isIconEnabled = (registeredPlugins || []).some(
+      (p) => (p.id === "google_material_icons" || p.id.includes("material_icons")) && p.enabled
+    );
+    if (isIconEnabled) {
+      const savedIcons = localStorage.getItem("ai_plate_active_icon_pack");
+      if (savedIcons && !document.getElementById("ai-plate-dynamic-icon-theme")) {
+        const parsedIcons = JSON.parse(savedIcons);
+        if (parsedIcons && (parsedIcons.active || parsedIcons.css)) {
+          window.applyDynamicThemeDirect(parsedIcons, false);
+        }
+      }
+    }
+    const isThemeEnabled = (registeredPlugins || []).some(
+      (p) => (p.id.includes("nordic") || p.id.includes("theme")) && p.id !== "google_material_icons" && p.enabled
+    );
+    if (isThemeEnabled) {
+      const savedTheme = localStorage.getItem("ai_plate_active_theme");
+      if (savedTheme && !document.getElementById("ai-plate-dynamic-plugin-theme")) {
+        const parsedTheme = JSON.parse(savedTheme);
+        if (parsedTheme && (parsedTheme.active || parsedTheme.css)) {
+          window.applyDynamicThemeDirect(parsedTheme, false);
+        }
+      }
+    }
+  } catch (e) {}
+}
+
 async function togglePlugin(pluginId, enabled) {
   const card = document.getElementById(`plugin-card-${pluginId}`);
   const badge = document.getElementById(`badge-${pluginId}`);
@@ -8325,6 +8364,7 @@ async function togglePlugin(pluginId, enabled) {
       renderPlugins(registeredPlugins);
       syncTTSUIState();
       syncSTTUIState();
+      ensureActiveThemeAndIcons();
       if (window.PluginUIHost) await window.PluginUIHost.refresh();
       showPluginToast(`${enabled ? "Enabled" : "Disabled"} plugin.`);
     } else {
