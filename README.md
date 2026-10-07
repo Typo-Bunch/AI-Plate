@@ -13,6 +13,16 @@
 
 [Visit the AI Plate website](https://ai-plate.typobunch.com/) · [Download the Windows release](https://github.com/Typo-Bunch/AI-Plate/releases/tag/v1.0.0-rc.1)
 
+## See AI Plate in action
+
+### Prompt processing
+
+![AI Plate prompt processing demo](docs/media/prompt-processing.gif)
+
+### Features
+
+![AI Plate features demo](docs/media/features.gif)
+
 ## Install on Windows
 
 Install the Windows x64 desktop app with one command. No Git, Node.js, or source build is required.
