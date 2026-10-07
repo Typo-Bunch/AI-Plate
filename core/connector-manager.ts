@@ -420,6 +420,7 @@ export class ConnectorManager extends EventEmitter {
       scriptPath: string;
       port: number;
       recentLogs: string[];
+      stoppedIntentionally?: boolean;
     }
   >();
   private companionStatusHistory = new Map<string, CompanionProcessInfo>();
@@ -1028,14 +1029,25 @@ export class ConnectorManager extends EventEmitter {
     }
 
     const pid = child.pid || 0;
-    const processEntry = {
+    const processEntry: {
+      process: ReturnType<typeof spawn>;
+      pid: number;
+      startedAt: string;
+      status: "running" | "stopped" | "crashed" | "starting";
+      lastError?: string;
+      scriptPath: string;
+      port: number;
+      recentLogs: string[];
+      stoppedIntentionally?: boolean;
+    } = {
       process: child,
       pid,
       startedAt: new Date().toISOString(),
-      status: "running" as const,
+      status: "running",
       scriptPath,
       port: connector.port,
       recentLogs,
+      stoppedIntentionally: false,
     };
 
     child.stdout?.on("data", (data: Buffer) => {
@@ -1077,7 +1089,8 @@ export class ConnectorManager extends EventEmitter {
 
     child.once("exit", (code, signal) => {
       this.companionProcesses.delete(connector.id);
-      const isClean = signal === "SIGTERM" || signal === "SIGKILL" || code === 0;
+      const wasIntentionallyStopped = processEntry.stoppedIntentionally || this.companionStatusHistory.get(connector.id)?.status === "stopped";
+      const isClean = wasIntentionallyStopped || signal === "SIGTERM" || signal === "SIGKILL" || code === 0;
       const lastLine = recentLogs.slice(-2).join(" | ");
       const errMsg = !isClean ? (lastLine || `Companion exited with code ${code}`) : undefined;
 
@@ -1124,6 +1137,8 @@ export class ConnectorManager extends EventEmitter {
       return { success: true };
     }
 
+    entry.stoppedIntentionally = true;
+    entry.status = "stopped";
     const pid = entry.pid;
     this.companionProcesses.delete(id);
 

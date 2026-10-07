@@ -1615,13 +1615,15 @@ export function setupIpcBridge(mainWindow: BrowserWindow): void {
     return { success: false, filename: cleanName };
   });
 
-  safeHandle("plugins:export", (_event, payload: { id: string }) => {
-    if (!payload?.id) throw validationError("Plugin id is required");
-    const zipBuf = orchestrator.getPluginManager().exportPluginZip(payload.id);
+  safeHandle("plugins:export", (_event, payload: { id: string } | string) => {
+    const id = typeof payload === "string" ? payload : payload?.id;
+    if (!id) throw validationError("Plugin id is required");
+    const zipBuf = orchestrator.getPluginManager().exportPluginZip(id);
     if (zipBuf) {
-      return { success: true, filename: `${payload.id}.zip`, base64: zipBuf.toString("base64") };
+      const b64 = zipBuf.toString("base64");
+      return { success: true, filename: `${id}.zip`, base64: b64, bufferBase64: b64 };
     }
-    return { success: false, filename: `${payload.id}.zip` };
+    return { success: false, filename: `${id}.zip`, error: `Failed to create .zip package for ${id}` };
   });
 
   // ─── 10. Native File Dialogs ────────────────────────────────────────

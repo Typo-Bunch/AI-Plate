@@ -165,5 +165,27 @@ describe("Plugin Manager Subsystem", () => {
     assert.ok(code.includes("@font-face"), "Handler should declare local @font-face");
     assert.ok(!code.includes(".message-tts-btn"), "TTS icons must not be controlled by google-icon plugin");
   });
+
+  test("Export Plugin as .zip package generates valid archive containing plugin.json", async () => {
+    await pm.loadPersistedCustomPlugins();
+    const zipBuf = pm.exportPluginZip("google_material_icons");
+    assert.ok(zipBuf, "Exported ZIP buffer must not be null");
+    assert.ok(zipBuf.length > 0, "Exported ZIP buffer must have length > 0");
+
+    // Dynamic import AdmZip to verify entries inside the generated ZIP
+    const AdmZipModule = await import("adm-zip");
+    const AdmZip = AdmZipModule.default || AdmZipModule;
+    const zip = new AdmZip(zipBuf);
+    const entries = zip.getEntries();
+    assert.ok(entries.length > 0, "ZIP should contain at least one file");
+
+    const manifestEntry = entries.find((e: any) => e.entryName === "plugin.json" || e.entryName.endsWith("/plugin.json"));
+    assert.ok(manifestEntry, "ZIP must contain plugin.json");
+
+    const raw = zip.readAsText(manifestEntry);
+    const parsed = JSON.parse(raw);
+    assert.equal(parsed.id, "google_material_icons");
+    assert.equal(parsed.name, "Google Material Icons");
+  });
 });
 

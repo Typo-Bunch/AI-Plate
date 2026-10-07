@@ -944,23 +944,46 @@ export class PluginManager extends EventEmitter {
     const reg = this.plugins.get(pluginId);
     if (!reg) return null;
 
-    const targetDir = resolve(CUSTOM_PLUGINS_INSTALLED_DIR, pluginId);
     const zip = new AdmZip();
 
-    if (existsSync(targetDir) && statSync(targetDir).isDirectory()) {
-      zip.addLocalFolder(targetDir);
-      return zip.toBuffer();
+    // 1. Directory bundle (check bundleDir, custom plugins dir, bundled plugins dir, and workspace dir)
+    const dirCandidates = [
+      reg.bundleDir,
+      resolve(CUSTOM_PLUGINS_INSTALLED_DIR, pluginId),
+      resolve(BUNDLED_PLUGINS_DIR, pluginId),
+      resolve(process.cwd(), "plugins", "installed", pluginId),
+    ].filter(Boolean) as string[];
+
+    for (const targetDir of dirCandidates) {
+      if (existsSync(targetDir) && statSync(targetDir).isDirectory()) {
+        zip.addLocalFolder(targetDir);
+        // Ensure plugin.json or manifest.json exists inside the zip package
+        const hasManifest = zip.getEntries().some(
+          (e) => !e.isDirectory && (e.entryName === "plugin.json" || e.entryName === "manifest.json")
+        );
+        if (!hasManifest && reg.manifest) {
+          zip.addFile("plugin.json", Buffer.from(JSON.stringify(reg.manifest, null, 2), "utf-8"));
+        }
+        return zip.toBuffer();
+      }
     }
 
-    // If legacy .aiplugin.json file
-    const legacyFile = resolve(CUSTOM_PLUGINS_INSTALLED_DIR, `${pluginId}.aiplugin.json`);
-    if (existsSync(legacyFile)) {
-      const manifestJson = readFileSync(legacyFile, "utf-8");
-      zip.addFile("plugin.json", Buffer.from(manifestJson, "utf-8"));
-      return zip.toBuffer();
+    // 2. Standalone .aiplugin.json file
+    const fileCandidates = [
+      resolve(CUSTOM_PLUGINS_INSTALLED_DIR, `${pluginId}.aiplugin.json`),
+      resolve(BUNDLED_PLUGINS_DIR, `${pluginId}.aiplugin.json`),
+      resolve(process.cwd(), "plugins", "installed", `${pluginId}.aiplugin.json`),
+    ];
+
+    for (const legacyFile of fileCandidates) {
+      if (existsSync(legacyFile)) {
+        const manifestJson = readFileSync(legacyFile, "utf-8");
+        zip.addFile("plugin.json", Buffer.from(manifestJson, "utf-8"));
+        return zip.toBuffer();
+      }
     }
 
-    // Fallback: If manifest exists in memory
+    // 3. Fallback: If manifest exists in memory
     if (reg.manifest) {
       zip.addFile("plugin.json", Buffer.from(JSON.stringify(reg.manifest, null, 2), "utf-8"));
       return zip.toBuffer();
