@@ -102,14 +102,22 @@ jobs:
           IS_PRERELEASE="${{ steps.meta.outputs.prerelease }}"
           IS_DRAFT="${{ steps.meta.outputs.draft }}"
 
-          EXTRA_FLAGS=()
+          EDIT_FLAGS=()
+          CREATE_FLAGS=()
+
           if [ "$IS_DRAFT" = "true" ]; then
-            EXTRA_FLAGS+=(--draft)
-          fi
-          if [ "$IS_PRERELEASE" = "true" ]; then
-            EXTRA_FLAGS+=(--prerelease)
+            EDIT_FLAGS+=(--draft)
+            CREATE_FLAGS+=(--draft)
           else
-            EXTRA_FLAGS+=(--latest)
+            EDIT_FLAGS+=(--draft=false)
+          fi
+
+          if [ "$IS_PRERELEASE" = "true" ]; then
+            EDIT_FLAGS+=(--prerelease)
+            CREATE_FLAGS+=(--prerelease)
+          else
+            EDIT_FLAGS+=(--latest)
+            CREATE_FLAGS+=(--latest)
           fi
 
           NOTES_ARGS=()
@@ -140,11 +148,11 @@ jobs:
           # Check if release exists on GitHub
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "Release $TAG already exists. Updating title, release notes, and uploading assets..."
-            gh release edit "$TAG" --title "$TITLE" "${NOTES_ARGS[@]}" "${EXTRA_FLAGS[@]}"
+            gh release edit "$TAG" --title "$TITLE" "${NOTES_ARGS[@]}" "${EDIT_FLAGS[@]}"
             gh release upload "$TAG" "${FILES[@]}" --clobber
           else
             echo "Creating new release for $TAG with title '$TITLE'..."
-            gh release create "$TAG" "${FILES[@]}" --title "$TITLE" "${NOTES_ARGS[@]}" "${EXTRA_FLAGS[@]}"
+            gh release create "$TAG" "${FILES[@]}" --title "$TITLE" "${NOTES_ARGS[@]}" "${CREATE_FLAGS[@]}"
           fi
 
           echo "Release successfully published!"
