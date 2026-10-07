@@ -6771,15 +6771,67 @@ window.handlePluginConfigImport = function (fileInput) {
   reader.readAsText(file);
 };
 
-window.handleSaveCustomPreset = function (btn) {
+window.handleDeleteCustomPreset = async function (btn) {
   const form = btn.closest(".plugin-tool-form");
   if (!form) return;
-  const name = prompt("Enter a name for your custom theme preset (e.g. 'Cyber Amber', 'Solarized Dark'):");
+  const select = form.querySelector('.plugin-param-preset-select[data-param="preset"]');
+  if (!select) return;
+  const val = select.value;
+  if (!val || !val.startsWith("custom:")) return;
+  const presetName = val.replace(/^custom:/, "");
+
+  const confirmed = await showThemedConfirm({
+    title: "Delete Custom Preset",
+    message: `Are you sure you want to delete the custom preset "${presetName}"?`,
+    confirmText: "Delete",
+    icon: "🗑️",
+    danger: true,
+  });
+  if (!confirmed) return;
+
+  // 1. Remove from localStorage
+  try {
+    const presets = JSON.parse(localStorage.getItem("ai_plate_custom_presets") || "{}");
+    delete presets[presetName];
+    localStorage.setItem("ai_plate_custom_presets", JSON.stringify(presets));
+  } catch {}
+
+  // 2. Remove option from dropdown(s)
+  document.querySelectorAll(`.plugin-param-preset-select option[value="${val}"]`).forEach((opt) => opt.remove());
+
+  // Hide delete button
+  btn.style.display = "none";
+
+  // 3. Fallback to default preset
+  const isIconTool = form.getAttribute("data-tool-name")?.includes("icon") || form.getAttribute("data-plugin-id")?.includes("icon");
+  const fallbackVal = isIconTool ? "modern-minimalist" : "nordic-dark";
+  select.value = fallbackVal;
+  window.handlePresetSelectChange(select);
+
+  showPluginToast(`🗑️ Deleted custom preset: "${presetName}"`);
+};
+
+window.handleSaveCustomPreset = async function (btn) {
+  const form = btn.closest(".plugin-tool-form");
+  if (!form) return;
+  const isIconTool = form.getAttribute("data-tool-name")?.includes("icon") || form.getAttribute("data-plugin-id")?.includes("icon");
+  const defaultPlaceholder = isIconTool ? "e.g. Modern Sharp, Minimal Glow" : "e.g. Cyber Amber, Solarized Dark";
+
+  const name = await showThemedPrompt({
+    title: isIconTool ? "Save Icon Pack Preset" : "Save Theme Preset",
+    message: "Enter a memorable name for your custom preset:",
+    placeholder: defaultPlaceholder,
+    confirmText: "Save Preset",
+    icon: isIconTool ? "💎" : "🎨"
+  });
   if (!name || !name.trim()) return;
   const presetName = name.trim();
 
   // 1. Gather all current form input values
-  const config = {};
+  const config = {
+    type: isIconTool ? "icon" : "theme",
+    isIcon: isIconTool,
+  };
   form.querySelectorAll(".plugin-param-input").forEach((input) => {
     const paramKey = input.getAttribute("data-param");
     if (!paramKey || paramKey === "save_as_preset") return;
@@ -7197,8 +7249,13 @@ function renderPlugins(plugins) {
               try {
                 customPresetsObj = JSON.parse(localStorage.getItem("ai_plate_custom_presets") || "{}");
               } catch (e) {}
-              const customKeys = Object.keys(customPresetsObj);
-              const activePreset = String(savedParams.preset || defaultVal || "nordic-dark");
+              const customKeys = Object.keys(customPresetsObj).filter((k) => {
+                const item = customPresetsObj[k];
+                if (!item || typeof item !== "object") return true;
+                if (isIconTool) return item.isIcon || item.type === "icon" || item.history_glyph || item.chat_glyph || item.icon_weight;
+                return !item.isIcon && item.type !== "icon" && !item.history_glyph;
+              });
+              const activePreset = String(savedParams.preset || defaultVal || (isIconTool ? "modern-minimalist" : "nordic-dark"));
 
               const customOptsHtml =
                 customKeys.length > 0
@@ -9122,6 +9179,90 @@ function showThemedConfirm({
     }
   });
 }
+
+function showThemedPrompt({
+  title = "Save Custom Preset",
+  message = "Enter a name for your custom preset:",
+  placeholder = "e.g. Cyber Amber",
+  defaultValue = "",
+  confirmText = "Save Preset",
+  cancelText = "Cancel",
+  icon = "✨",
+} = {}) {
+  return new Promise((resolve) => {
+    const modal = document.getElementById("prompt-modal");
+    const iconEl = document.getElementById("prompt-modal-icon");
+    const titleEl = document.getElementById("prompt-modal-title");
+    const descEl = document.getElementById("prompt-modal-desc");
+    const inputEl = document.getElementById("prompt-modal-input");
+    const btnCancel = document.getElementById("prompt-btn-cancel");
+    const btnAction = document.getElementById("prompt-btn-action");
+
+    if (!modal || !btnAction || !btnCancel || !inputEl) {
+      return resolve(null);
+    }
+
+    if (iconEl) iconEl.textContent = icon;
+    if (titleEl) titleEl.textContent = title;
+    if (descEl) descEl.textContent = message;
+    if (inputEl) {
+      inputEl.placeholder = placeholder;
+      inputEl.value = defaultValue;
+    }
+    btnCancel.textContent = cancelText;
+    btnAction.textContent = confirmText;
+
+    let isResolved = false;
+    const cleanup = (result) => {
+      if (isResolved) return;
+      isResolved = true;
+      modal.classList.remove("visible");
+      setTimeout(() => {
+        modal.classList.add("hidden");
+      }, 180);
+      document.removeEventListener("keydown", onKeyDown);
+      btnCancel.onclick = null;
+      btnAction.onclick = null;
+      modal.onclick = null;
+      resolve(result);
+    };
+
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        cleanup(null);
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        const val = inputEl.value.trim();
+        if (val) cleanup(val);
+      }
+    };
+
+    btnCancel.onclick = () => cleanup(null);
+    btnAction.onclick = () => {
+      const val = inputEl.value.trim();
+      if (val) {
+        cleanup(val);
+      } else {
+        inputEl.focus();
+      }
+    };
+    modal.onclick = (e) => {
+      if (e.target === modal) cleanup(null);
+    };
+
+    document.addEventListener("keydown", onKeyDown);
+
+    modal.classList.remove("hidden");
+    void modal.offsetWidth;
+    modal.classList.add("visible");
+    setTimeout(() => {
+      inputEl.focus();
+      inputEl.select();
+    }, 60);
+  });
+}
+window.showThemedPrompt = showThemedPrompt;
 
 // ─── Direct In-Chat Artifact Viewer & Deliverables Listing ───────────
 
