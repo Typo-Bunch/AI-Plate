@@ -1003,6 +1003,30 @@
   </div>
 
   <!-- ═══════════════════════════════════════════════════════════════
+       MODAL: THEMED PROMPT DIALOG (Custom Presets & User Input)
+       ═══════════════════════════════════════════════════════════════ -->
+  <div id="prompt-modal" class="modal-overlay hidden">
+    <div class="confirm-modal-card">
+      <div class="confirm-modal-header">
+        <div class="confirm-modal-icon-wrap info" id="prompt-modal-icon-wrap">
+          <span class="confirm-modal-icon" id="prompt-modal-icon">✨</span>
+        </div>
+        <div class="confirm-modal-titles">
+          <h3 class="confirm-modal-title" id="prompt-modal-title">Save Custom Preset</h3>
+          <p class="confirm-modal-desc" id="prompt-modal-desc">Enter a name for your custom preset:</p>
+        </div>
+      </div>
+      <div class="prompt-modal-body" style="width: 100%; box-sizing: border-box;">
+        <input type="text" id="prompt-modal-input" class="custom-input" placeholder="e.g. Cyber Amber" style="width: 100%; font-size: 13.5px; padding: 9px 12px; box-sizing: border-box;" autocomplete="off" />
+      </div>
+      <div class="confirm-modal-actions">
+        <button type="button" class="btn btn-secondary" id="prompt-btn-cancel">Cancel</button>
+        <button type="button" class="btn btn-primary" id="prompt-btn-action">Save Preset</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
        MODAL: SETTINGS & CONFIGURATION (Left Sidebar Layout)
        ═══════════════════════════════════════════════════════════════ -->
   <div id="settings-modal" class="settings-modal-overlay hidden">
