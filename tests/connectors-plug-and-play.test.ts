@@ -186,34 +186,25 @@ describe("Plug-and-Play Modular App Connectors Subsystem (Pure ZIP Format)", () 
     assert.ok(!existsSync(join(INSTALLED_CONNECTORS_DIR, testId)));
   });
 
-  test("Notion Connector ZIP: installs successfully with all 6 tools and uninstalls cleanly", async () => {
-    const candidates = [
-      join(process.cwd(), "connector-sample", "notion.connector.zip"),
-      join(process.cwd(), "connectors", "notion.connector.zip"),
-      join(process.cwd(), "artifacts", "notion.connector.zip"),
-    ];
-    const notionZipPath = candidates.find((p) => existsSync(p)) || candidates[0];
-    assert.ok(existsSync(notionZipPath), "Expected notion.connector.zip to exist in connector-sample/ or connectors/");
+  test("Sample Connector ZIP: installs successfully and uninstalls cleanly", async () => {
+    const sampleZipPath = join(process.cwd(), "connector-sample", "obsidian-vault.connector.zip");
+    assert.ok(existsSync(sampleZipPath), "Expected obsidian-vault.connector.zip to exist in connector-sample/");
 
-    const zipBuffer = Buffer.from(new AdmZip(notionZipPath).toBuffer());
+    const zipBuffer = Buffer.from(new AdmZip(sampleZipPath).toBuffer());
     const installRes = await cm.installConnectorZip(zipBuffer);
     assert.equal(installRes.success, true);
     assert.ok(installRes.connector);
-    assert.equal(installRes.connector.id, "notion");
-    assert.equal(installRes.connector.name, "Notion Workspace");
+    assert.equal(installRes.connector.id, "obsidian_vault");
+    assert.equal(installRes.connector.name, "Obsidian Vault");
 
     // Verify tools registered in PluginManager
     const toolNames = pm.getToolNames();
-    assert.ok(toolNames.includes("notion_search"));
-    assert.ok(toolNames.includes("notion_query_database"));
-    assert.ok(toolNames.includes("notion_get_page"));
-    assert.ok(toolNames.includes("notion_get_block_children"));
-    assert.ok(toolNames.includes("notion_create_page"));
-    assert.ok(toolNames.includes("notion_append_blocks"));
+    assert.ok(toolNames.includes("obsidian_vault_read_note"));
+    assert.ok(toolNames.includes("obsidian_vault_write_note"));
 
     // Cleanup
-    const deleted = cm.deleteConnector("notion");
+    const deleted = cm.deleteConnector("obsidian_vault");
     assert.equal(deleted, true);
-    assert.ok(!pm.getToolNames().includes("notion_search"));
+    assert.ok(!pm.getToolNames().includes("obsidian_vault_read_note"));
   });
 });

@@ -6854,7 +6854,7 @@ window.ICON_PRESET_PALETTES = {
     icon_fill: false,
     icon_size: "18px",
     history_glyph: "schedule",
-    chat_glyph: "chat_bubble_outline",
+    chat_glyph: "chat_bubble",
     kb_glyph: "auto_stories",
     artifacts_glyph: "grid_view",
     settings_glyph: "tune",
@@ -6920,7 +6920,7 @@ window.ICON_PRESET_PALETTES = {
     icon_fill: false,
     icon_size: "18px",
     history_glyph: "bookmark",
-    chat_glyph: "question_answer",
+    chat_glyph: "chat",
     kb_glyph: "school",
     artifacts_glyph: "workspaces",
     settings_glyph: "manage_accounts",
@@ -7043,6 +7043,43 @@ function setPluginCollapsedState(id, isCollapsed) {
   }
 }
 
+async function exportPluginAsZip(pluginId) {
+  if (!pluginId) return;
+  try {
+    showPluginToast(`📦 Exporting "${pluginId}" as .zip package...`);
+    let data = null;
+    if (window.electronAPI && window.electronAPI.plugins && typeof window.electronAPI.plugins.export === "function") {
+      data = await window.electronAPI.plugins.export(pluginId);
+    } else {
+      const res = await fetch(`/api/plugins/export?id=${encodeURIComponent(pluginId)}`);
+      data = await res.json();
+    }
+
+    const b64 = data?.base64 || data?.bufferBase64;
+    if (data && (data.success || b64) && b64) {
+      const byteCharacters = atob(b64);
+      const byteNumbers = new Uint8Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const blob = new Blob([byteNumbers], { type: "application/zip" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = data.filename || `${pluginId}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      showPluginToast(`✅ Exported package: ${data.filename || `${pluginId}.zip`}`);
+    } else {
+      showPluginToast(`❌ Export failed: ${data?.error || "Could not generate zip package"}`, true);
+    }
+  } catch (err) {
+    showPluginToast(`❌ Export error: ${err.message}`, true);
+  }
+}
+
 function renderPlugins(plugins) {
   if (!pluginsListContainer) return;
   pluginsListContainer.innerHTML = "";
@@ -7087,6 +7124,7 @@ function renderPlugins(plugins) {
         const properties = schema.properties || {};
         const propKeys = Object.keys(properties);
         const isThemeTool = tool.name.includes("theme") || tool.name.includes("style") || plugin.id.includes("theme");
+        const isIconTool = tool.name.includes("icon") || plugin.id.includes("icon");
 
         let savedParams = {};
         try {
@@ -7094,6 +7132,35 @@ function renderPlugins(plugins) {
             const savedTheme = localStorage.getItem("ai_plate_active_theme");
             if (savedTheme) {
               savedParams = JSON.parse(savedTheme);
+            }
+          } else if (isIconTool) {
+            const savedIconPack = localStorage.getItem("ai_plate_active_icon_pack");
+            if (savedIconPack) {
+              const parsedIcon = JSON.parse(savedIconPack);
+              savedParams = Object.assign({}, parsedIcon);
+              if (parsedIcon.icon_pack) {
+                const ip = parsedIcon.icon_pack;
+                if (ip.preset) savedParams.preset = ip.preset;
+                if (ip.style) savedParams.style = ip.style;
+                if (ip.weight) savedParams.icon_weight = ip.weight;
+                if (ip.fill !== undefined) savedParams.icon_fill = ip.fill;
+                if (ip.size) savedParams.icon_size = ip.size;
+                if (ip.history) savedParams.history_glyph = ip.history;
+                if (ip.chat) savedParams.chat_glyph = ip.chat;
+                if (ip.kb) savedParams.kb_glyph = ip.kb;
+                if (ip.artifacts) savedParams.artifacts_glyph = ip.artifacts;
+                if (ip.settings) savedParams.settings_glyph = ip.settings;
+                if (ip.send) savedParams.send_glyph = ip.send;
+                if (ip.newChat) savedParams.new_chat_glyph = ip.newChat;
+                if (ip.tools) savedParams.tools_glyph = ip.tools;
+                if (ip.tokens) savedParams.tokens_glyph = ip.tokens;
+                if (ip.reasoning) savedParams.reasoning_glyph = ip.reasoning;
+                if (ip.settingsModels) savedParams.settings_models_glyph = ip.settingsModels;
+                if (ip.settingsPlugins) savedParams.settings_plugins_glyph = ip.settingsPlugins;
+                if (ip.settingsConnectors) savedParams.settings_connectors_glyph = ip.settingsConnectors;
+                if (ip.settingsSecurity) savedParams.settings_security_glyph = ip.settingsSecurity;
+                if (ip.settingsConfig) savedParams.settings_config_glyph = ip.settingsConfig;
+              }
             }
           }
           const savedToolParams = localStorage.getItem(`ai_plate_plugin_params_${plugin.id}_${tool.name}`);
@@ -7270,6 +7337,12 @@ function renderPlugins(plugins) {
                   isThemeTool
                     ? `
                   <button type="button" class="btn btn-secondary btn-xs btn-reset-dynamic-theme" style="font-size: 11.5px; padding: 5px 10px;">
+                    🔄 Reset Default
+                  </button>
+                `
+                    : isIconTool
+                    ? `
+                  <button type="button" class="btn btn-secondary btn-xs btn-reset-dynamic-icons" style="font-size: 11.5px; padding: 5px 10px;">
                     🔄 Reset Default
                   </button>
                 `
@@ -7473,6 +7546,35 @@ function renderPlugins(plugins) {
       });
     });
 
+    // Wire reset icon pack button if present
+    card.querySelectorAll(".btn-reset-dynamic-icons").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        window.resetDynamicIconPack(true);
+      });
+    });
+
+    // Wire live auto-apply on parameter changes (for theme & icon pack tools)
+    card.querySelectorAll(".plugin-tool-form").forEach((form) => {
+      const isLiveTool =
+        form.getAttribute("data-tool-name")?.includes("icon") ||
+        form.getAttribute("data-tool-name")?.includes("theme") ||
+        form.getAttribute("data-plugin-id")?.includes("icon") ||
+        form.getAttribute("data-plugin-id")?.includes("theme");
+
+      if (isLiveTool) {
+        form.querySelectorAll(".plugin-param-input").forEach((input) => {
+          if (input.classList.contains("plugin-param-preset-select")) return;
+          input.addEventListener("change", () => {
+            const applyBtn = form.querySelector(".btn-exec-plugin-tool");
+            if (applyBtn && !card.classList.contains("disabled")) {
+              applyBtn.click();
+            }
+          });
+        });
+      }
+    });
+
     // Wire toggle listener
     const checkbox = card.querySelector(`#toggle-${plugin.id}`);
     if (checkbox) {
@@ -7485,8 +7587,9 @@ function renderPlugins(plugins) {
     // Wire export listener (only for custom plugins)
     const btnExport = card.querySelector(`#export-${plugin.id}`);
     if (btnExport) {
-      btnExport.addEventListener("click", () => {
-        window.open(`/api/plugins/export?id=${encodeURIComponent(plugin.id)}`, "_blank");
+      btnExport.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        await exportPluginAsZip(plugin.id);
       });
     }
 
@@ -9661,6 +9764,7 @@ window.applyDynamicThemeDirect = function (themeData = {}, showToast = true) {
   const wallpaperName = themeData.wallpaper_name || (themeData.bg_image && themeData.bg_image !== "none" ? themeData.bg_image : "");
 
   // Persist active theme or icon pack in localStorage with all properties
+  let mergedConfig = {};
   try {
     const storageKey = isIconPack ? "ai_plate_active_icon_pack" : "ai_plate_active_theme";
     const existing = JSON.parse(localStorage.getItem(storageKey) || "{}");
@@ -9673,7 +9777,7 @@ window.applyDynamicThemeDirect = function (themeData = {}, showToast = true) {
       theme_name: themeName || existing.theme_name,
       wallpaper_name: wallpaperName || (themeData.bg_image && themeData.bg_image !== "none" ? themeData.bg_image : "") || existing.wallpaper_name || "",
       bg_image: themeData.bg_image !== undefined ? themeData.bg_image : existing.bg_image,
-      preset: themeData.preset || existing.preset || "nordic-dark",
+      preset: themeData.preset || existing.preset || (isIconPack ? "modern-minimalist" : "nordic-dark"),
       font_family: themeData.font_family || existing.font_family,
       border_radius: themeData.border_radius || existing.border_radius,
       compact_mode: themeData.compact_mode !== undefined ? themeData.compact_mode : existing.compact_mode,
@@ -9683,6 +9787,15 @@ window.applyDynamicThemeDirect = function (themeData = {}, showToast = true) {
       text_main_color: themeData.text_main_color || existing.text_main_color,
       border_color: themeData.border_color || existing.border_color,
       icon_pack: themeData.icon_pack || null,
+      chat_glyph: themeData.chat_glyph || (themeData.icon_pack && themeData.icon_pack.chat) || existing.chat_glyph || "chat",
+      history_glyph: themeData.history_glyph || (themeData.icon_pack && themeData.icon_pack.history) || existing.history_glyph || "history",
+      settings_glyph: themeData.settings_glyph || (themeData.icon_pack && themeData.icon_pack.settings) || existing.settings_glyph || "settings",
+      tools_glyph: themeData.tools_glyph || (themeData.icon_pack && themeData.icon_pack.tools) || existing.tools_glyph || "construction",
+      new_chat_glyph: themeData.new_chat_glyph || (themeData.icon_pack && themeData.icon_pack.newChat) || existing.new_chat_glyph || "add_comment",
+      send_glyph: themeData.send_glyph || (themeData.icon_pack && themeData.icon_pack.send) || existing.send_glyph || "send",
+      theme_glyph: themeData.theme_glyph || (themeData.icon_pack && themeData.icon_pack.theme) || existing.theme_glyph || "palette",
+      user_avatar_glyph: themeData.user_avatar_glyph || (themeData.icon_pack && themeData.icon_pack.userAvatar) || existing.user_avatar_glyph || "person",
+      assistant_avatar_glyph: themeData.assistant_avatar_glyph || (themeData.icon_pack && themeData.icon_pack.assistantAvatar) || existing.assistant_avatar_glyph || "smart_toy",
       tokens_glyph: themeData.tokens_glyph || themeData.tokensGlyph || (themeData.icon_pack && themeData.icon_pack.tokens) || existing.tokens_glyph || "monitoring",
       reasoning_glyph: themeData.reasoning_glyph || themeData.reasoningGlyph || (themeData.icon_pack && themeData.icon_pack.reasoning) || existing.reasoning_glyph || "psychology",
       settings_models_glyph: themeData.settings_models_glyph || themeData.settingsModelsGlyph || (themeData.icon_pack && themeData.icon_pack.settingsModels) || existing.settings_models_glyph || "smart_toy",
@@ -9690,14 +9803,37 @@ window.applyDynamicThemeDirect = function (themeData = {}, showToast = true) {
       settings_connectors_glyph: themeData.settings_connectors_glyph || themeData.settingsConnectorsGlyph || (themeData.icon_pack && themeData.icon_pack.settingsConnectors) || existing.settings_connectors_glyph || "hub",
       settings_security_glyph: themeData.settings_security_glyph || themeData.settingsSecurityGlyph || (themeData.icon_pack && themeData.icon_pack.settingsSecurity) || existing.settings_security_glyph || "security",
       settings_config_glyph: themeData.settings_config_glyph || themeData.settingsConfigGlyph || (themeData.icon_pack && themeData.icon_pack.settingsConfig) || existing.settings_config_glyph || "tune",
+      style: themeData.style || (themeData.icon_pack && themeData.icon_pack.style) || existing.style || "outlined",
+      icon_weight: themeData.icon_weight || (themeData.icon_pack && themeData.icon_pack.weight) || existing.icon_weight || "400",
+      icon_fill: themeData.icon_fill !== undefined ? themeData.icon_fill : (themeData.icon_pack && themeData.icon_pack.fill !== undefined ? themeData.icon_pack.fill : (existing.icon_fill !== undefined ? existing.icon_fill : false)),
+      icon_size: themeData.icon_size || (themeData.icon_pack && themeData.icon_pack.size) || existing.icon_size || "18px",
       appliedAt: new Date().toISOString(),
     });
+    mergedConfig = merged;
     localStorage.setItem(storageKey, JSON.stringify(merged));
   } catch (e) {}
 
   syncTitleBarTheme();
 
-  if (!isIconPack) {
+  if (isIconPack) {
+    // Synchronize icon form inputs if an icon pack tool form is currently rendered
+    document.querySelectorAll('.plugin-tool-form[data-plugin-id*="icon"], .plugin-tool-form[data-tool-name*="icon"]').forEach((form) => {
+      Object.keys(mergedConfig).forEach((key) => {
+        const input = form.querySelector(`.plugin-param-input[data-param="${key}"]`);
+        if (input) {
+          if (input.type === "checkbox") {
+            input.checked = Boolean(mergedConfig[key]);
+          } else {
+            input.value = mergedConfig[key];
+          }
+        }
+      });
+      if (mergedConfig.preset) {
+        const presetSel = form.querySelector('.plugin-param-preset-select[data-param="preset"]');
+        if (presetSel) presetSel.value = mergedConfig.preset;
+      }
+    });
+  } else {
     // Keep open wallpaper inputs cleanly synchronized with active image (never "none")
     document.querySelectorAll(".plugin-param-image-input").forEach((inp) => {
       if (wallpaperName && wallpaperName !== "none") {
@@ -9749,6 +9885,47 @@ window.resetDynamicIconPack = function (showToast = true) {
   const fontEl = document.getElementById("ai-plate-dynamic-icon-font");
   if (fontEl) fontEl.remove();
   localStorage.removeItem("ai_plate_active_icon_pack");
+
+  // Reset form inputs in any open icon tool form back to defaults
+  const defaults = {
+    preset: "modern-minimalist",
+    style: "outlined",
+    icon_weight: "400",
+    icon_fill: false,
+    icon_size: "18px",
+    chat_glyph: "chat",
+    history_glyph: "history",
+    settings_glyph: "settings",
+    tools_glyph: "construction",
+    new_chat_glyph: "add_comment",
+    send_glyph: "send",
+    theme_glyph: "palette",
+    user_avatar_glyph: "person",
+    assistant_avatar_glyph: "smart_toy",
+    tokens_glyph: "monitoring",
+    reasoning_glyph: "psychology",
+    settings_models_glyph: "smart_toy",
+    settings_plugins_glyph: "extension",
+    settings_connectors_glyph: "hub",
+    settings_security_glyph: "security",
+    settings_config_glyph: "tune",
+  };
+
+  document.querySelectorAll('.plugin-tool-form[data-plugin-id*="icon"], .plugin-tool-form[data-tool-name*="icon"]').forEach((form) => {
+    Object.entries(defaults).forEach(([key, val]) => {
+      const input = form.querySelector(`.plugin-param-input[data-param="${key}"]`);
+      if (input) {
+        if (input.type === "checkbox") {
+          input.checked = Boolean(val);
+        } else {
+          input.value = val;
+        }
+      }
+    });
+    const presetSel = form.querySelector('.plugin-param-preset-select[data-param="preset"]');
+    if (presetSel) presetSel.value = defaults.preset;
+  });
+
   if (showToast) {
     showPluginToast("Restored default UI icons.");
   }

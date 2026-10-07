@@ -48,7 +48,7 @@ test("mode filters declarations and blocks a whitelisted tool, then permits it i
       provider.nextTurnResponses = [{ text: "", functionCalls: [{ name: toolName, args: {} }], finishReason: "tool_calls" }];
       await orchestrator.processPrompt("hello", undefined, session.id, mode);
       assert.equal(provider.registeredTools.some(t => t.name === toolName), mode === "code");
-      assert.ok(provider.systemPrompt.includes(`${mode[0].toUpperCase()}${mode.slice(1)} mode:`));
+      assert.ok(provider.systemPrompt.includes(`${mode[0].toUpperCase()}${mode.slice(1)} mode`));
       const observation = provider.functionResponsesReceived.at(-1)![0].response;
       if (mode !== "code") assert.match(String(observation.error), /unavailable/);
       else assert.equal(observation.success, true);

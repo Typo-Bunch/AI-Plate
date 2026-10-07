@@ -247,7 +247,7 @@ describe("Intelligent Context Compressor Subsystem", () => {
     const session = orchestrator.createSession("Compressor Integration");
     orchestrator.getSecurityManager().addSessionWhitelist(session.id, compressorToolName);
 
-    const response = await orchestrator.processPrompt("Check logs", undefined, session.id);
+    const response = await orchestrator.processPrompt("Check logs", undefined, session.id, "agent");
     assert.ok(response.includes("analyzed the logs"));
 
     // Verify that the function response sent to provider was compressed
