@@ -6966,6 +6966,8 @@ window.handlePresetSelectChange = function (select) {
   const isCardDisabled = card && card.classList.contains("disabled");
 
   const val = select.value;
+  const presetSel = form.querySelector('.plugin-param-preset-select[data-param="preset"]');
+  if (presetSel) presetSel.value = val;
   const delBtn = form.querySelector(".btn-delete-custom-preset");
 
   let config = null;
@@ -7166,6 +7168,18 @@ function renderPlugins(plugins) {
           const savedToolParams = localStorage.getItem(`ai_plate_plugin_params_${plugin.id}_${tool.name}`);
           if (savedToolParams) {
             savedParams = Object.assign({}, savedParams, JSON.parse(savedToolParams));
+          }
+          if (isIconTool) {
+            const savedIconPack = localStorage.getItem("ai_plate_active_icon_pack");
+            if (savedIconPack) {
+              try {
+                const parsedIcon = JSON.parse(savedIconPack);
+                const activePreset = parsedIcon.preset || (parsedIcon.icon_pack && parsedIcon.icon_pack.preset);
+                if (activePreset) {
+                  savedParams.preset = activePreset;
+                }
+              } catch {}
+            }
           }
         } catch {}
 
@@ -9777,7 +9791,11 @@ window.applyDynamicThemeDirect = function (themeData = {}, showToast = true) {
       theme_name: themeName || existing.theme_name,
       wallpaper_name: wallpaperName || (themeData.bg_image && themeData.bg_image !== "none" ? themeData.bg_image : "") || existing.wallpaper_name || "",
       bg_image: themeData.bg_image !== undefined ? themeData.bg_image : existing.bg_image,
-      preset: themeData.preset || existing.preset || (isIconPack ? "modern-minimalist" : "nordic-dark"),
+      preset:
+        themeData.preset ||
+        (themeData.icon_pack && themeData.icon_pack.preset) ||
+        existing.preset ||
+        (isIconPack ? "modern-minimalist" : "nordic-dark"),
       font_family: themeData.font_family || existing.font_family,
       border_radius: themeData.border_radius || existing.border_radius,
       compact_mode: themeData.compact_mode !== undefined ? themeData.compact_mode : existing.compact_mode,
