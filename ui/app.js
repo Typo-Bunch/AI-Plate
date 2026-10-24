@@ -5718,16 +5718,19 @@ async function readFileData(file) {
 async function queueAttachment(file) {
   try {
     const { content, isBase64 } = await readFileData(file);
+
     // Avoid duplicate filenames
     if (pendingAttachments.some((a) => a.filename === file.name)) {
       return;
     }
+
     pendingAttachments.push({
       filename: file.name,
       size: file.size,
       content: content,
       isBase64: isBase64,
     });
+
     renderPendingAttachments();
   } catch (err) {
     alert("Could not read file: " + err.message);
@@ -12184,6 +12187,25 @@ kbDropzone.addEventListener("drop", async (e) => {
 });
 
 async function handleFileUpload(file) {
+  
+  const supportedExtensions = new Set([
+    ".md", ".markdown", ".txt", ".pdf", ".csv", ".tsv",
+    ".json", ".js", ".ts", ".py", ".html", ".css",
+    ".yaml", ".yml"
+  ]);
+
+  const lastDot = file.name.lastIndexOf(".");
+  const extension = lastDot > 0
+  ? file.name.slice(lastDot).toLowerCase()
+  : "";
+
+  if (!supportedExtensions.has(extension)) {
+    showToast(
+      `⚠️ Unsupported format: '${file.name}' cannot be indexed into Vector RAG. Only text documents (.md, .txt, .pdf, .csv, code) are currently supported.`,
+      "warning"
+    );
+    return;
+  }
   const isMd = file.name.toLowerCase().endsWith(".md") || file.name.toLowerCase().endsWith(".markdown");
   const dropzoneTitle = kbDropzone.querySelector(".dropzone-title");
   const originalTitle = dropzoneTitle.textContent;
